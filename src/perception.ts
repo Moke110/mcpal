@@ -28,12 +28,13 @@ export interface Observation {
   blocks: { position: Position; name: string | null }[]
 }
 
-export function readObservation(bot: Bot, inventoryReceived: boolean, currentTask: TaskInfo | null = null): Observation {
+export function readObservation(bot: Bot, inventoryReceived: boolean, currentTask: TaskInfo | null = null,
+  isCurrentEntity: (id: number) => boolean = () => true): Observation {
   const { position, yaw, pitch } = bot.entity
   const radius = 32
   const nearby = { radius, players: [] as NearbyEntity[], entities: [] as NearbyEntity[] }
   for (const entity of Object.values(bot.entities)) {
-    if (entity.id === bot.entity.id || !entity.isValid) continue
+    if (entity.id === bot.entity.id || !entity.isValid || !isCurrentEntity(entity.id)) continue
     const distance = position.distanceTo(entity.position)
     if (!Number.isFinite(distance) || distance > radius) continue
     const target = entity.type === 'player' ? nearby.players : nearby.entities

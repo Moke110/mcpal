@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { connect } from "../client.ts";
+import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
 
 const dataPath = process.env.MCPAL_DESKTOP_DATA;
@@ -65,8 +68,19 @@ async function startDesktop(): Promise<void> {
   });
   handle("desktop:simulation-reconnect", () => session.switchSession());
   handle("desktop:stop", () => session.stop());
+  const live = new LiveMinecraftSession((state) => {
+    if (!window.isDestroyed()) window.webContents.send("minecraft:state", state);
+  }, (config, report, authPrompt) => connect(config, report, authPrompt, {
+    profilesFolder: join(app.getPath("userData"), "minecraft-profiles"),
+  }));
+  handle("minecraft:snapshot", () => live.snapshot());
+  handle("minecraft:connect", (settings) => live.open(settings));
+  handle("minecraft:disconnect", () => live.disconnect());
+  handle("minecraft:follow", (target) => live.follow(target));
+  handle("minecraft:stop", () => live.stop());
   window.on("closed", () => {
     session.dispose();
+    live.disconnect();
     app.quit();
   });
   await window.loadURL(page.href);
