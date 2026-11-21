@@ -93,6 +93,7 @@ export class SimulationSession {
   readonly #publish: (state: SimulationState) => void;
   readonly #clock: WindowClock;
   readonly #scheduler: ReadWindowScheduler<Input, FrozenObservation, Intent>;
+  readonly #unsubscribeLocalFailure?: () => void;
 
   readonly #options: SessionOptions;
   #liveObservation: Observation | null = null;
@@ -117,6 +118,13 @@ export class SimulationSession {
       commit: (intent) => this.#commitIntent(intent),
       changed: () => this.#updateWindow(),
       abortSuperseded: () => this.#state.backend !== "simulated",
+    });
+    this.#unsubscribeLocalFailure = options.local?.onRuntimeFailure(() => {
+      if (this.#state.backend !== "local") return;
+      const window = this.#scheduler.snapshot();
+      if (window.runningWindow === null && !window.queuedInputs && window.result !== "staged") return;
+      this.#state.localRequest = { kind: "cancelled" };
+      this.#scheduler.cancel();
     });
     this.#observe();
   }
@@ -259,6 +267,7 @@ export class SimulationSession {
 
   dispose(): void {
     this.#disposed = true;
+    this.#unsubscribeLocalFailure?.();
     this.#scheduler.dispose();
     this.#playbackTimer?.();
     this.#cleanupTimer?.();

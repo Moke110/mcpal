@@ -37,6 +37,7 @@ export class LocalBackend {
   #unconfirmedExit = false;
   readonly #launch: Launch;
   readonly #publish: () => void;
+  readonly #failureListeners = new Set<() => void>();
 
   constructor(
     model: LocalModel,
@@ -51,6 +52,11 @@ export class LocalBackend {
 
   snapshot(): LocalView {
     return { ...this.#view };
+  }
+
+  onRuntimeFailure(listener: () => void): () => void {
+    this.#failureListeners.add(listener);
+    return () => this.#failureListeners.delete(listener);
   }
 
   start(): Promise<void> {
@@ -176,6 +182,7 @@ export class LocalBackend {
       this.#view.phase = phase;
       this.#publish();
     });
+    if (phase !== "off") for (const listener of this.#failureListeners) listener();
     this.#publish();
   }
 }
