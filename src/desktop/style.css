@@ -131,6 +131,9 @@ dd { margin: 0; text-align: right; font-weight: 600; }
 }
 #simulation-reconnect { margin-top: 10px; }
 #window-counts { max-width: 72%; }
+.speech-controls { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+#speech-device { max-width: 70%; font: inherit; }
+#speech-device-status { margin-top: 4px; font-size: .85rem; color: #506554; }
 
 @media (max-width: 730px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }

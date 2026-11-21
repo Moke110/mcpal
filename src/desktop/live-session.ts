@@ -48,6 +48,7 @@ export class LiveMinecraftSession {
   #generation = 0;
   #chatEpoch = 0;
   #publicChat = false;
+  #replacement: string | null = null;
   readonly #publish: (state: LiveMinecraftSnapshot) => void;
   readonly #openConnection: OpenConnection;
   readonly #receiveChat?: (message: MinecraftOperatorInput) => void;
@@ -110,6 +111,7 @@ export class LiveMinecraftSession {
 
   disconnect(): void {
     if (!this.#connection || this.#state.phase === "disconnecting") return;
+    this.#replacement = null;
     this.#state.phase = "disconnecting";
     this.#chatEpoch++;
     this.#publicChat = false;
@@ -151,12 +153,32 @@ export class LiveMinecraftSession {
     this.#emit();
     void connection.io.execute({ kind: "follow", player: target }).then((result) => {
       if (this.#connection !== connection) return;
+      const next = this.#replacement;
+      this.#replacement = null;
       this.#state.task = { phase: "released", target, result };
       this.#emit();
+      if (next && result.state === "cancelled") this.follow(next);
     });
   }
 
+  replaceFollow(target: string): void {
+    if (this.#state.phase !== "ready") return;
+    const task = this.#state.task;
+    if (task.phase === "idle" || task.phase === "released") {
+      this.follow(target);
+      return;
+    }
+    if (task.phase !== "stopping" && task.target === target) return;
+    this.stop();
+    this.#replacement = target;
+  }
+
+  invalidateReplacement(): void {
+    this.#replacement = null;
+  }
+
   stop(): void {
+    this.invalidateReplacement();
     if (this.#state.task.phase !== "following" && this.#state.task.phase !== "pending") return;
     this.#state.task.phase = "stopping";
     this.#connection?.io.stop();
@@ -169,6 +191,7 @@ export class LiveMinecraftSession {
       case "login":
       case "world_unavailable":
         this.#chatEpoch++;
+        this.invalidateReplacement();
         this.#state.phase = "positioning";
         this.#state.observation = null;
         this.#state.authPrompt = null;
