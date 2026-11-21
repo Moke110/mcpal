@@ -42,7 +42,7 @@ function renderConversation(messages) {
     speaker.className = "speaker";
     speaker.textContent = role === "companion"
       ? publicReply ? "MC-Pal · GUI 和 Minecraft" : "MC-Pal"
-      : source === "minecraft" ? `${player} · Minecraft` : source === "voice" ? "你 · 模拟语音" : "你";
+      : source === "minecraft" ? `${player} · Minecraft` : source === "voice" ? "你 · 语音" : "你";
     const paragraph = document.createElement("p");
     paragraph.textContent = text;
     message.append(speaker, paragraph);

@@ -116,7 +116,12 @@ export class ReadWindowScheduler<Input, Observation, Output> {
     this.#wake();
   }
 
-  submit(input: Input): void {
+  nextInputWindow(): number {
+    this.#advance();
+    return this.#window.id + Number(this.#window.frozen);
+  }
+
+  submit(input: Input): number {
     this.#advance();
     this.#revision++;
     this.#invalidateResult();
@@ -129,7 +134,9 @@ export class ReadWindowScheduler<Input, Observation, Output> {
     this.#status = "reading";
     this.#firstMs = null;
     this.#completeMs = null;
+    const window = this.#window.id + Number(this.#window.frozen);
     this.#notify();
+    return window;
   }
 
   cancel(): void {

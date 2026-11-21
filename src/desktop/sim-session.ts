@@ -29,6 +29,7 @@ type SessionOptions = {
   liveAction?: (intent: GameIntent) => void;
   invalidateLiveReplacement?: () => void;
   onReply?: (text: string) => void;
+  onInputAccepted?: () => void;
   onSessionChange?: () => void;
   minecraftReplyRoute?: () => number | null;
   minecraftReply?: (route: number, text: string) => boolean;
@@ -190,9 +191,13 @@ export class SimulationSession {
     this.#scheduler.switchSession();
   }
 
-  submitText(text: string, source: Exclude<Source, "minecraft">): void {
+  nextInputWindow(): number {
+    return this.#scheduler.nextInputWindow();
+  }
+
+  submitText(text: string, source: Exclude<Source, "minecraft">): number | null {
     const live = this.#state.api.live;
-    this.#submit(text, source, live, live ? this.#options.minecraftReplyRoute?.() ?? null : null);
+    return this.#submit(text, source, live, live ? this.#options.minecraftReplyRoute?.() ?? null : null);
   }
 
   submitMinecraft({ text, player, replyRoute }: MinecraftOperatorInput): void {
@@ -200,9 +205,10 @@ export class SimulationSession {
     this.#submit(text, "minecraft", true, replyRoute, player);
   }
 
-  #submit(text: string, source: Source, live: boolean, replyRoute: number | null, player?: string): void {
+  #submit(text: string, source: Source, live: boolean, replyRoute: number | null, player?: string): number | null {
     const input = text.trim();
-    if (!input || input.length > 500) return;
+    if (!input || input.length > 500) return null;
+    this.#options.onInputAccepted?.();
     this.#options.invalidateLiveReplacement?.();
     this.#interruptPlayback();
     this.#replacement = null;
@@ -210,11 +216,11 @@ export class SimulationSession {
     if (/^(?:请\s*)?停止(?:跟随)?[。！!\s]*$/u.test(input)) {
       this.#stop(live);
       if (source === "minecraft") this.#reply("已请求停止。", source, replyRoute);
-      return;
+      return null;
     }
     const timeout = this.#state.timeoutNext;
     this.#state.timeoutNext = false;
-    this.#scheduler.submit({ text: input, source, timeout, live, replyRoute });
+    return this.#scheduler.submit({ text: input, source, timeout, live, replyRoute });
   }
 
   stop(): void {
