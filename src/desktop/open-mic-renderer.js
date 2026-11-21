@@ -41,8 +41,11 @@ function close(reason = "未启用") {
   current.stream?.getTracks().forEach((track) => track.stop());
   current.input?.disconnect();
   current.echo?.disconnect();
+  current.reflectedEcho?.disconnect();
+  current.reflectedLevel?.disconnect();
   current.user?.disconnect();
   if (current.echo) current.reference.disconnect(current.echo);
+  if (current.reflectedEcho) current.reference.disconnect(current.reflectedEcho);
   if (current.node) {
     current.node.port.close();
     current.node.disconnect();
@@ -57,8 +60,12 @@ function fail(current, reason) {
 }
 
 function soundFixture(current) {
-  if (!config.openMicFixture || current.sampleSent || scenario.value === "echo") return;
+  if (!config.openMicFixture || current.sampleSent) return;
   current.sampleSent = true;
+  if (scenario.value === "echo") {
+    current.reflectedLevel.gain.setValueAtTime(0.7 / 0.65, current.context.currentTime + 0.3);
+    return;
+  }
   if (scenario.value === "error") {
     current.reference.disconnect(current.node);
     return;
@@ -100,6 +107,13 @@ async function listen() {
       const input = context.createGain();
       input.gain.value = 0.65;
       reference.connect(delay).connect(input);
+      const reflected = context.createDelay();
+      reflected.delayTime.value = 0.1;
+      const reflectedLevel = context.createGain();
+      reflectedLevel.gain.value = 0;
+      reference.connect(reflected).connect(reflectedLevel).connect(input);
+      current.reflectedEcho = reflected;
+      current.reflectedLevel = reflectedLevel;
       current.echo = delay;
       current.input = input;
     } else {
@@ -134,7 +148,10 @@ async function listen() {
         find("open-mic-reference").textContent = !data.reference ? "等待输出" :
           data.locked ? "正在消除播放回声" : "参考未对齐 · 暂缓识别";
         if (data.reference && data.locked) soundFixture(current);
-        if (!data.reference) current.sampleSent = false;
+        if (!data.reference && current.sampleSent) {
+          current.sampleSent = false;
+          current.reflectedLevel?.gain.setValueAtTime(0, context.currentTime);
+        }
       }
       if (data.start !== undefined && !reading) {
         const at = epoch(context, data.start);
@@ -247,6 +264,14 @@ enable.addEventListener("change", () => {
   if (enable.checked) void listen();
   else close();
 });
-scenario.addEventListener("change", () => { if (graph) graph.sampleSent = false; });
+scenario.addEventListener("change", () => {
+  if (!graph) return;
+  graph.sampleSent = false;
+  const level = graph.reflectedLevel?.gain;
+  if (level) {
+    level.cancelScheduledValues(graph.context.currentTime);
+    level.setValueAtTime(0, graph.context.currentTime);
+  }
+});
 find("open-mic-fixture").hidden = !config.openMicFixture;
 availability();

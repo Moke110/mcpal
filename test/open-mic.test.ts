@@ -47,3 +47,21 @@ test("echo path changes do not turn a shifted loudspeaker stream into a command"
     assert.equal(gate.process(mic, signal.subarray(offset, offset + 320)).speech, false);
   }
 });
+
+test("a strong second reflection does not become speech after the first echo path is learned", () => {
+  const gate = new EchoGate();
+  let seed = 67;
+  const signal = Float32Array.from({ length: 16000 }, () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return (seed / 2 ** 32 - 0.5) * 0.28;
+  });
+  for (let offset = 0; offset < signal.length; offset += 320) {
+    const mic = Float32Array.from({ length: 320 }, (_, i) => {
+      const reflected = offset < 6400 ? 0 : (signal[offset + i - 1600] ?? 0) * 0.7;
+      const nearEnd = offset < 12800 ? 0 : Math.sin(i * 0.085) * 0.13;
+      return (signal[offset + i - 800] ?? 0) * 0.65 + reflected + nearEnd;
+    });
+    assert.equal(gate.process(mic, signal.subarray(offset, offset + 320), true).speech,
+      offset >= 12800, `block ${offset}`);
+  }
+});
