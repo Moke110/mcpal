@@ -1,14 +1,15 @@
 import { resolve } from 'node:path'
 import mineflayer from 'mineflayer'
 import type { Config } from './config.ts'
-import { createControls } from './controls.ts'
+import { createControls, type TrustedMinecraftChat } from './controls.ts'
 import type { MinecraftIO } from './io.ts'
 import { readBlock, readObservation } from './perception.ts'
 
 type Report = (event: string, fields?: Record<string, unknown>) => void
 
 export function connect(config: Config, report: Report, onAuthPrompt: (message: string) => void,
-  { workstationTest = false, profilesFolder = resolve('.runtime', 'profiles') } = {}) {
+  { workstationTest = false, profilesFolder = resolve('.runtime', 'profiles'), onTrustedChat }:
+    { workstationTest?: boolean; profilesFolder?: string; onTrustedChat?: (message: TrustedMinecraftChat) => void } = {}) {
   let stopping = false
   report('connecting', { host: config.host, port: config.port, auth: config.auth, version: config.version || 'auto' })
   const bot = mineflayer.createBot({
@@ -134,7 +135,7 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
         () => bot.health === 0 ? null : getStatus(), report, () => {
           close('operationCleanupTimeout')
           transport.socket?.destroy()
-        }, workstationTest, isCurrentEntity)
+        }, workstationTest, isCurrentEntity, onTrustedChat)
     } catch (error) {
       report('error', { message: error instanceof Error ? error.message : String(error) })
       close('controlSetupFailed')
@@ -148,5 +149,6 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
       ?? Promise.resolve({ state: 'failed', message: 'Control is disabled' }),
     stop: () => controls?.cancel(),
   }
-  return { closed, close, getStatus, io, fixture: controls?.fixture, command: controls?.terminal }
+  const chat = { send: (text: string) => controls?.reply(text) ?? false }
+  return { closed, close, getStatus, io, chat, fixture: controls?.fixture, command: controls?.terminal }
 }

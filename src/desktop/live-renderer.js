@@ -7,6 +7,7 @@
   const disconnect = el("minecraft-disconnect");
   const stop = el("minecraft-stop");
   const follow = el("minecraft-follow");
+  const publicChat = el("minecraft-public-chat");
   const connectionLabels = {
     disconnected: "未连接", connecting: "等待登录", positioning: "等待游戏观测",
     ready: "已就绪", disconnecting: "正在断开", failed: "连接失败",
@@ -17,6 +18,7 @@
   };
   let observedPlayers = [];
   let canFollow = false;
+  let shownChat = [];
 
   function showMode(live) {
     el("simulation-workspace").hidden = live;
@@ -51,6 +53,8 @@
     el("minecraft-settings").disabled = !available;
     disconnect.disabled = available || phase === "disconnecting";
     stop.disabled = phase !== "ready" || (task.phase !== "following" && task.phase !== "pending");
+    publicChat.checked = state.publicChat;
+    publicChat.disabled = phase !== "ready";
     optionalText("live-auth-prompt", state.authPrompt);
     optionalText("live-reason", state.reason);
     el("live-player").textContent = observation ? `${observation.username} · ${observation.version}` : "未知";
@@ -58,6 +62,7 @@
     el("live-position").textContent = observation
       ? `${observation.dimension ?? "未知维度"} · ${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}` : "未知";
     el("live-block").textContent = observation?.blocks[0]?.name ?? "未知";
+    el("live-health").textContent = observation?.health ?? "未知";
     el("live-inventory").textContent = observation?.inventory
       ? observation.inventory.map(({ name, count }) => `${name} × ${count}`).join("、") || "空"
       : "未知";
@@ -67,6 +72,20 @@
     el("live-task").textContent = task.target ? `${taskLabels[task.phase]} · ${task.target}` : taskLabels[task.phase];
     optionalText("live-task-result", task.result?.message);
     renderPlayers(observation?.nearby.players ?? []);
+  }
+
+  function renderChat(state) {
+    const rows = state.messages.filter(({ source }) => source === "minecraft").slice(-8);
+    const lines = rows.map(({ role, player, text, publicReply }) => role === "operator"
+      ? `${player} · Minecraft　${text}`
+      : `MC-Pal · ${publicReply ? "GUI 和 Minecraft" : "GUI"}　${text}`);
+    if (shownChat.length === lines.length && shownChat.every((line, index) => line === lines[index])) return;
+    shownChat = lines;
+    el("live-chat-log").replaceChildren(...lines.map((line) => {
+      const row = document.createElement("li");
+      row.textContent = line;
+      return row;
+    }));
   }
 
   function showError() {
@@ -93,8 +112,11 @@
   });
   disconnect.addEventListener("click", () => bridge.disconnect().catch(showError));
   stop.addEventListener("click", () => bridge.stop().catch(showError));
+  publicChat.addEventListener("change", () => bridge.setChatRoute(publicChat.checked).catch(showError));
   if (bridge) {
     bridge.onState(render);
     bridge.snapshot().then(render).catch(showError);
   }
+  window.companion.onState(renderChat);
+  window.companion.snapshot().then(renderChat).catch(showError);
 })();

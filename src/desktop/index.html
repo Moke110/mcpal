@@ -114,6 +114,9 @@
             <label>账号或玩家名
               <input id="minecraft-username" name="username" maxlength="320" autocomplete="off" required>
             </label>
+            <label>授权聊天玩家
+              <input name="authorizedPlayers" maxlength="500" placeholder="Owner, Friend" autocomplete="off">
+            </label>
             <label class="control live-offline" id="minecraft-offline-control" hidden>
               <input name="offlineControl" type="checkbox"> 允许在隔离世界中使用离线控制
             </label>
@@ -124,6 +127,14 @@
         <button id="minecraft-disconnect" type="button" disabled>断开</button>
         <p id="live-auth-prompt" class="live-note" hidden></p>
         <p id="live-reason" role="alert" hidden></p>
+        <div class="live-chat">
+          <h2>游戏聊天</h2>
+          <label class="control">
+            <input id="minecraft-public-chat" type="checkbox" disabled> 在 Minecraft 公开回复
+          </label>
+          <p class="live-note">授权玩家可在游戏中发送 <code>!pal 生命值</code>、<code>!pal 跟随 Owner</code> 或 <code>!pal 停止</code>。</p>
+          <ol id="live-chat-log" aria-label="最近的 Minecraft 对话"></ol>
+        </div>
       </section>
 
       <aside aria-label="实机观测和控制">
@@ -133,6 +144,7 @@
             <div><dt>角色</dt><dd id="live-player"></dd></div>
             <div><dt>维度与位置</dt><dd id="live-position"></dd></div>
             <div><dt>脚下方块</dt><dd id="live-block"></dd></div>
+            <div><dt>生命值</dt><dd id="live-health"></dd></div>
             <div><dt>背包</dt><dd id="live-inventory"></dd></div>
             <div><dt>附近玩家</dt><dd id="live-nearby"></dd></div>
           </dl>
