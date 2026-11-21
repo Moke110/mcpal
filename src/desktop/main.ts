@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { connect } from "../client.ts";
+import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
 import { SpeechOutput } from "./speech-output.ts";
 import { synthesizeSpeechFixture, synthesizeWindowsSpeech } from "./windows-speech.ts";
@@ -91,9 +94,20 @@ async function startDesktop(): Promise<void> {
     if (typeof id !== "number" || !Number.isSafeInteger(id)) throw new TypeError("Invalid speech ID");
     speech.settled(id);
   });
+  const live = new LiveMinecraftSession((state) => {
+    if (!window.isDestroyed()) window.webContents.send("minecraft:state", state);
+  }, (config, report, authPrompt) => connect(config, report, authPrompt, {
+    profilesFolder: join(app.getPath("userData"), "minecraft-profiles"),
+  }));
+  handle("minecraft:snapshot", () => live.snapshot());
+  handle("minecraft:connect", (settings) => live.open(settings));
+  handle("minecraft:disconnect", () => live.disconnect());
+  handle("minecraft:follow", (target) => live.follow(target));
+  handle("minecraft:stop", () => live.stop());
   window.on("closed", () => {
     speech.dispose();
     session.dispose();
+    live.disconnect();
     app.quit();
   });
   await window.loadURL(page.href);

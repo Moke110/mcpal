@@ -7,7 +7,7 @@ import { syncInventory } from './inventory-sync.ts'
 
 const { goals, Movements, pathfinder } = pathfinderPlugin
 
-export function createSkills(bot: Bot) {
+export function createSkills(bot: Bot, isCurrentEntity: (id: number) => boolean) {
   bot.loadPlugin(pathfinder)
   let configured = false
 
@@ -38,7 +38,7 @@ export function createSkills(bot: Bot) {
 
   function playerEntity(player: string) {
     const entity = bot.players[player]?.entity
-    return entity?.isValid && entity !== bot.entity ? entity : undefined
+    return entity?.isValid && entity !== bot.entity && isCurrentEntity(entity.id) ? entity : undefined
   }
 
   async function mine(at: Position, signal: AbortSignal) {

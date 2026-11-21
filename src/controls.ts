@@ -34,8 +34,9 @@ export function authorizedPlayer(bot: Pick<Bot, 'players' | 'username'>, config:
 }
 
 export function createControls(bot: Bot, config: Config & { control: NonNullable<Config['control']> },
-  observe: () => Observation | null, report: Report, recover: () => void, workstationTest = false) {
-  const skills = createSkills(bot)
+  observe: () => Observation | null, report: Report, recover: () => void, workstationTest: boolean,
+  isCurrentEntity: (id: number) => boolean) {
+  const skills = createSkills(bot, isCurrentEntity)
   const tasks = createTasks(report, recover)
   const reported = new Set<Promise<TaskResult>>()
   let closing = false

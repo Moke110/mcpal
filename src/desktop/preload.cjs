@@ -18,3 +18,14 @@ contextBridge.exposeInMainWorld("companion", {
     ipcRenderer.on("desktop:state", (_event, state) => listener(state));
   },
 });
+
+contextBridge.exposeInMainWorld("minecraft", {
+  snapshot: () => ipcRenderer.invoke("minecraft:snapshot"),
+  connect: (settings) => ipcRenderer.invoke("minecraft:connect", settings),
+  disconnect: () => ipcRenderer.invoke("minecraft:disconnect"),
+  follow: (target) => ipcRenderer.invoke("minecraft:follow", target),
+  stop: () => ipcRenderer.invoke("minecraft:stop"),
+  onState: (listener) => {
+    ipcRenderer.on("minecraft:state", (_event, state) => listener(state));
+  },
+});

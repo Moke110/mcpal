@@ -23,12 +23,17 @@ async function observeSession(t: import('node:test').TestContext, version: strin
 
   const events: string[] = []
   const { promise: firstSnapshot, resolve: receive } = Promise.withResolvers<Observation>()
+  const { promise: nextDimension, resolve: receiveNextDimension } = Promise.withResolvers<Observation>()
   const client = connect({
     host, port: address.port, username: 'Companion', auth: 'offline',
     version: false, snapshotIntervalMs: 1000,
   }, (event, fields) => {
     events.push(event)
-    if (event === 'snapshot') receive(fields?.observation as Observation)
+    if (event === 'snapshot') {
+      const observation = fields?.observation as Observation
+      receive(observation)
+      if (observation.dimension === 'the_nether') receiveNextDimension(observation)
+    }
   }, () => assert.fail('offline login requested Microsoft authentication'))
   t.after(() => client.close())
   const [peer] = await once(server, 'playerJoin') as [protocol.ServerClient]
@@ -76,6 +81,24 @@ async function observeSession(t: import('node:test').TestContext, version: strin
   assert.equal(snapshot.nearby.entities[0]?.distance, 2)
   assert.equal(snapshot.nearby.players[0]?.username, 'HostPlayer')
   assert.deepEqual(snapshot.blocks.map((block) => block.name), [null, null, null])
+  if (version === '26.1') {
+    const login = data.loginPacket
+    assert.ok(login.dimensionCodec)
+    assert.ok('worldState' in login && login.worldState && typeof login.worldState === 'object')
+    const nether = login.dimensionCodec['minecraft:dimension_type'].entries
+      .findIndex(({ key }: { key: string }) => key === 'minecraft:the_nether')
+    assert.ok(nether >= 0)
+    peer.write('respawn', {
+      worldState: { ...login.worldState, dimension: nether, name: 'minecraft:the_nether' },
+      copyMetadata: 0,
+    })
+    peer.write('position', { ...position, dx: 0, dy: 0, dz: 0, yaw: 90, pitch: 0, flags: 0, teleportId: 2 })
+    peer.write('update_health', { health: 17, food: 14, foodSaturation: 3 })
+    const current = await nextDimension
+    assert.deepEqual(current.nearby.players, [])
+    assert.deepEqual(current.nearby.entities, [])
+    assert.equal(current.inventory, null)
+  }
   client.close()
   assert.equal((await client.closed).requested, true)
   assert.equal(events.at(-1), 'disconnected')
