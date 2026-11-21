@@ -4,8 +4,7 @@ export class EchoGate {
   #cursor = 0;
   #tail = 0;
   #delay = -1;
-  #gain = 0;
-  #reflection = null;
+  #reflections = [];
   #stable = 0;
   #silentReference = 0;
 
@@ -28,52 +27,62 @@ export class EchoGate {
     if (!this.#tail) {
       this.#stable = 0;
       this.#delay = -1;
-      this.#reflection = null;
+      this.#reflections = [];
       return { clean: mic, speech: !playbackExpected && rms(mic) > 0.023, reference: false, locked: false };
     }
 
-    const previous = this.#measure(mic, start, this.#delay);
-    const match = previous.score < 0.81 ? this.#findPath(mic, start) : previous;
-    const replacing = this.#stable === 2 && match.delay !== this.#delay;
-    if (match.score > (replacing ? 0.94 : 0.81)) {
-      if (match.delay !== this.#delay) {
-        this.#stable = 0;
-        this.#reflection = null;
+    if (this.#stable < 2) {
+      const previous = this.#measure(mic, start, this.#delay);
+      const match = previous.score > 0.81 ? previous : this.#findPath(mic, start);
+      if (match.score > 0.81) {
+        this.#stable = match.delay === this.#delay ? this.#stable + 1 : 1;
+        this.#delay = match.delay;
       }
-      this.#delay = match.delay;
-      this.#gain = match.gain;
-      this.#stable = Math.min(this.#stable + 1, 2);
     }
 
     const locked = this.#stable === 2;
-    const primary = match.delay === this.#delay ? match : previous;
-    let clean = locked && primary.score > 0.18 ? this.#subtract(mic, start, this.#delay, this.#gain) : mic;
-    let uncertain = locked && primary.score <= 0.18 && this.#silentReference === 0;
-    if (locked && rms(clean) > 0.023) {
-      const strongest = this.#findPath(clean, start);
-      if (strongest.score > 0.64 && strongest.delay !== this.#delay) {
-        this.#reflection = strongest;
-        clean = this.#subtract(clean, start, strongest.delay, strongest.gain);
-        // Withhold residuals still correlated with playback after both projections.
-        uncertain ||= rms(clean) > 0.023 && this.#findPath(clean, start).score > 0.6;
-      } else if (this.#reflection) {
-        const check = this.#measure(clean, start, this.#reflection.delay);
-        if (check.score > 0.23 && check.gain * this.#reflection.gain > 0) {
-          clean = this.#subtract(clean, start, this.#reflection.delay, this.#reflection.gain);
+    if (!locked) return { clean: mic, speech: false, reference: true, locked };
+
+    const clean = mic.slice();
+    const modeled = [this.#delay, ...this.#reflections];
+    let strongestFit = 0;
+    // Two coordinate passes jointly fit the known paths and remove residual cross-correlation.
+    for (let pass = 0; pass < 2; pass++) {
+      for (const delay of modeled) {
+        const fit = this.#measure(clean, start, delay);
+        strongestFit = Math.max(strongestFit, fit.score);
+        if (fit.score < 0.12) continue;
+        for (let i = 0; i < clean.length; i++) {
+          clean[i] -= fit.gain * this.#history[(start + i - delay) & 8191];
         }
       }
     }
-    const echo = locked ? rms(mic.map((sample, index) => sample - clean[index])) : 0;
-    // A weak residual is consistent with an imperfect estimate of the loudspeaker path.
-    const speech = locked && !uncertain && (!playbackExpected || this.#silentReference < 4) &&
-      rms(clean) > Math.max(0.023, echo * 0.75);
+    const residual = rms(clean);
+    const echo = rms(mic.map((sample, index) => sample - clean[index]));
+    // Suppress weak or unexplained residuals while the playback path is uncertain.
+    let speech = (strongestFit > 0.18 || this.#silentReference > 0) &&
+      (!playbackExpected || this.#silentReference < 4) && residual > Math.max(0.023, echo * 0.65);
+    if (residual > 0.023) {
+      const unseen = this.#findPath(clean, start, modeled);
+      if (unseen.score > 0.3) {
+        // A novel correlated path is evidence of echo. Learn at most one path per block
+        // and withhold the whole block while that path is unmodeled.
+        this.#reflections.push(unseen.delay);
+        if (this.#reflections.length > 7) this.#reflections.shift();
+        speech = false;
+      }
+    }
     return { clean, speech, reference: true, locked };
   }
 
-  #findPath(samples, start) {
+  #findPath(samples, start, modeled = []) {
     const best = { delay: -1, gain: 0, score: 0 };
     const candidate = { ...best };
     for (let delay = 0; delay <= 5120; delay++) {
+      if (modeled.includes(delay)) continue;
+      // The sparse scan is only a prefilter; acceptance uses the entire block.
+      this.#measure(samples, start, delay, candidate, 5);
+      if (candidate.score < 0.21) continue;
       this.#measure(samples, start, delay, candidate);
       if (candidate.score > best.score) {
         best.delay = delay;
@@ -84,16 +93,12 @@ export class EchoGate {
     return best;
   }
 
-  #subtract(samples, start, delay, gain) {
-    return samples.map((sample, index) => sample - gain * this.#history[(start + index - delay) & 8191]);
-  }
-
-  #measure(mic, start, delay, result = { delay, gain: 0, score: 0 }) {
+  #measure(mic, start, delay, result = { delay, gain: 0, score: 0 }, stride = 1) {
     let dot = 0;
     let x = 0;
     let y = 0;
     if (delay >= 0) {
-      for (let index = 0; index < mic.length; index += 5) {
+      for (let index = 0; index < mic.length; index += stride) {
         const reference = this.#history[(start + index - delay) & 8191];
         dot += mic[index] * reference;
         x += reference * reference;

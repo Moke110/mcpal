@@ -65,3 +65,32 @@ test("a strong second reflection does not become speech after the first echo pat
       offset >= 12800, `block ${offset}`);
   }
 });
+
+test("five overlapping playback paths are still echo, including after rapid room-path changes", () => {
+  const gate = new EchoGate();
+  let seed = 128;
+  const signal = Float32Array.from({ length: 32000 }, () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return (seed / 2 ** 32 - 0.5) * 0.28;
+  });
+  let run = 0;
+  let longestRun = 0;
+  let accepted = 0;
+  for (let offset = 0; offset < signal.length; offset += 320) {
+    const mic = Float32Array.from({ length: 320 }, (_, i) => {
+      const at = (delay: number) => signal[offset + i - delay] ?? 0;
+      const rooms = offset < 6400 ? 0 : at(1200) * 0.31 + at(1600) * 0.34 + at(2000) * 0.33 + at(2400) * 0.33;
+      const nearEnd = offset >= 24000 ? Math.sin(i * 0.075) * 0.19 : 0;
+      return at(800) * 0.45 + rooms + nearEnd;
+    });
+    const { speech } = gate.process(mic, signal.subarray(offset, offset + 320), true);
+    if (offset < 24000) assert.equal(speech, false, `echo-only block ${offset}`);
+    else {
+      run = speech ? run + 1 : 0;
+      longestRun = Math.max(longestRun, run);
+      accepted += Number(speech);
+    }
+  }
+  assert.ok(longestRun >= 5, "the worklet can confirm a run of near-end speech");
+  assert.ok(accepted >= 20, "most of the overlapping near-end waveform survives");
+});

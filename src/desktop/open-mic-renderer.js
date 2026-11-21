@@ -41,11 +41,13 @@ function close(reason = "未启用") {
   current.stream?.getTracks().forEach((track) => track.stop());
   current.input?.disconnect();
   current.echo?.disconnect();
-  current.reflectedEcho?.disconnect();
-  current.reflectedLevel?.disconnect();
   current.user?.disconnect();
   if (current.echo) current.reference.disconnect(current.echo);
-  if (current.reflectedEcho) current.reference.disconnect(current.reflectedEcho);
+  for (const { delay, level } of current.reflections ?? []) {
+    current.reference.disconnect(delay);
+    delay.disconnect();
+    level.disconnect();
+  }
   if (current.node) {
     current.node.port.close();
     current.node.disconnect();
@@ -63,7 +65,9 @@ function soundFixture(current) {
   if (!config.openMicFixture || current.sampleSent) return;
   current.sampleSent = true;
   if (scenario.value === "echo") {
-    current.reflectedLevel.gain.setValueAtTime(0.7 / 0.65, current.context.currentTime + 0.3);
+    for (const { level, gain } of current.reflections) {
+      level.gain.setValueAtTime(gain, current.context.currentTime + 0.3);
+    }
     return;
   }
   if (scenario.value === "error") {
@@ -105,15 +109,16 @@ async function listen() {
       const delay = context.createDelay();
       delay.delayTime.value = 0.05;
       const input = context.createGain();
-      input.gain.value = 0.65;
+      input.gain.value = 0.45;
       reference.connect(delay).connect(input);
-      const reflected = context.createDelay();
-      reflected.delayTime.value = 0.1;
-      const reflectedLevel = context.createGain();
-      reflectedLevel.gain.value = 0;
-      reference.connect(reflected).connect(reflectedLevel).connect(input);
-      current.reflectedEcho = reflected;
-      current.reflectedLevel = reflectedLevel;
+      current.reflections = [[0.075, 0.31], [0.1, 0.34], [0.125, 0.33], [0.15, 0.33]].map(([seconds, gain]) => {
+        const reflected = context.createDelay();
+        reflected.delayTime.value = seconds;
+        const level = context.createGain();
+        level.gain.value = 0;
+        reference.connect(reflected).connect(level).connect(input);
+        return { delay: reflected, level, gain: gain / 0.45 };
+      });
       current.echo = delay;
       current.input = input;
     } else {
@@ -150,7 +155,7 @@ async function listen() {
         if (data.reference && data.locked) soundFixture(current);
         if (!data.reference && current.sampleSent) {
           current.sampleSent = false;
-          current.reflectedLevel?.gain.setValueAtTime(0, context.currentTime);
+          clearFixtureReflections(current);
         }
       }
       if (data.start !== undefined && !reading) {
@@ -264,14 +269,17 @@ enable.addEventListener("change", () => {
   if (enable.checked) void listen();
   else close();
 });
+function clearFixtureReflections(current) {
+  for (const { level } of current.reflections ?? []) {
+    level.gain.cancelScheduledValues(current.context.currentTime);
+    level.gain.setValueAtTime(0, current.context.currentTime);
+  }
+}
+
 scenario.addEventListener("change", () => {
   if (!graph) return;
   graph.sampleSent = false;
-  const level = graph.reflectedLevel?.gain;
-  if (level) {
-    level.cancelScheduledValues(graph.context.currentTime);
-    level.setValueAtTime(0, graph.context.currentTime);
-  }
+  clearFixtureReflections(graph);
 });
 find("open-mic-fixture").hidden = !config.openMicFixture;
 availability();
