@@ -30,7 +30,7 @@ type Options = {
   interrupt: () => void;
   now: () => number;
   window: () => number;
-  submit: (text: string) => number | null;
+  submit: (text: string, openMic: boolean) => number | null;
 };
 
 const initial: State = {
@@ -44,6 +44,7 @@ export class VoiceInput {
   #nextId = 0;
   #active?: {
     id: number;
+    openMic: boolean;
     stream?: StreamingRecognizer;
     bytes: number;
     releaseWindow: number | null;
@@ -64,11 +65,11 @@ export class VoiceInput {
     this.#publish();
   }
 
-  start(fixture = "", token: string | null = null): number | null {
+  start(fixture = "", token: string | null = null, openMic = false): number | null {
     if (!this.#state.enabled) return null;
     this.#retire();
     const id = ++this.#nextId;
-    this.#active = { id, bytes: 0, releaseWindow: null };
+    this.#active = { id, openMic, bytes: 0, releaseWindow: null };
     this.#state = { ...initial, token, enabled: true, phase: "recording" };
     this.#options.interrupt();
     this.#publish();
@@ -130,6 +131,10 @@ export class VoiceInput {
     this.#publish();
   }
 
+  cancelOpenMic(): void {
+    if (this.#active?.openMic) this.cancel();
+  }
+
   fail(id: number, message: string): void {
     if (this.#active?.id !== id) return;
     this.#retire();
@@ -152,7 +157,7 @@ export class VoiceInput {
     } else {
       this.#state.phase = "final";
       this.#state.final = final;
-      this.#state.window = this.#options.submit(final);
+      this.#state.window = this.#options.submit(final, active.openMic);
       this.#state.late = this.#state.window !== null && active.releaseWindow !== this.#state.window;
     }
     this.#publish();

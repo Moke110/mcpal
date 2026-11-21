@@ -67,13 +67,16 @@ test("停播撤回仍在初始化音频设备的试听，并允许再次试听",
     previewSpeech: async () => { previews++; },
     cancelSpeech: async () => { stops++; },
   };
-  runInNewContext(readFileSync(new URL("../src/desktop/speech-renderer.js", import.meta.url), "utf8"), {
+  const source = readFileSync(new URL("../src/desktop/speech-renderer.js", import.meta.url), "utf8")
+    .replace("export { openPlaybackReference };", "");
+  runInNewContext(source, {
     document: { getElementById: element },
     window: { companion: bridge },
     navigator: { mediaDevices: { addEventListener() {}, enumerateDevices: async () => [] } },
     Option: class {},
     AudioContext: class {
       audioWorklet = { addModule: async () => {} };
+      createGain() { return {}; }
       resume() { return resume.promise; }
     },
   });

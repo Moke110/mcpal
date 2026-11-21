@@ -41,6 +41,35 @@ test("only a released, current nonempty final enters its reading window once", (
   assert.equal(input.snapshot().finalAt, 300);
 });
 
+test("disabling open mic drops its pending stop without cancelling an independent PTT capture", () => {
+  let callbacks!: RecognizerEvents;
+  const results: Array<[string, boolean]> = [];
+  const input = new VoiceInput({
+    open: (events) => {
+      callbacks = events;
+      return { write() {}, end() {}, cancel() {} };
+    },
+    publish() {},
+    interrupt() {},
+    now: () => 200,
+    window: () => 1,
+    submit: (text, openMic) => { results.push([text, openMic]); return null; },
+  });
+  input.setEnabled(true);
+  const open = input.start("", null, true)!;
+  input.write(open, new Uint8Array(320));
+  input.release(open, 180, 190);
+  input.cancelOpenMic();
+  callbacks.final("停止");
+  assert.deepEqual(results, []);
+  const ptt = input.start()!;
+  input.write(ptt, new Uint8Array(320));
+  input.release(ptt, 180, 190);
+  input.cancelOpenMic();
+  callbacks.final("停止");
+  assert.deepEqual(results, [["停止", false]]);
+});
+
 test("canceled and superseded captures cannot act, and empty audio returns to text", () => {
   const workers: RecognizerEvents[] = [];
   const submitted: string[] = [];
