@@ -22,8 +22,12 @@ const phases = {
   empty: "未识别到文字", cancelled: "录音已取消", error: "录音或识别出错",
 };
 
+const clock = new Intl.DateTimeFormat("zh-CN", {
+  hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3, hour12: false,
+});
+
 function stamp(value) {
-  return value === null ? "—" : new Date(value).toLocaleTimeString("zh-CN", { fractionalSecondDigits: 3 });
+  return value === null ? "—" : clock.format(value);
 }
 
 bridge.onAsr((state) => {
