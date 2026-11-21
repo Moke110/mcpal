@@ -186,20 +186,24 @@ export class SimulationSession {
     this.#scheduler.switchSession();
   }
 
-  submitText(text: string, source: Source): void {
+  nextInputWindow(): number {
+    return this.#scheduler.nextInputWindow();
+  }
+
+  submitText(text: string, source: Source): number | null {
     const input = text.trim();
-    if (!input || input.length > 500) return;
+    if (!input || input.length > 500) return null;
     this.#options.invalidateLiveReplacement?.();
     this.#interruptPlayback();
     this.#replacement = null;
     this.#addMessage({ role: "operator", source, text: input });
     if (/^(?:请\s*)?停止(?:跟随)?[。！!\s]*$/u.test(input)) {
       this.stop();
-      return;
+      return null;
     }
     const timeout = this.#state.timeoutNext;
     this.#state.timeoutNext = false;
-    this.#scheduler.submit({ text: input, source, timeout });
+    return this.#scheduler.submit({ text: input, source, timeout });
   }
 
   stop(): void {

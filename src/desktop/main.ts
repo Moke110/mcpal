@@ -8,6 +8,8 @@ import { createApiBackend } from "./api-backend.ts";
 import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
 import { SpeechOutput } from "./speech-output.ts";
+import { VoiceInput } from "./voice-input.ts";
+import { openAsrFixture, openVosk } from "./vosk-asr.ts";
 import { synthesizeSpeechFixture, synthesizeWindowsSpeech } from "./windows-speech.ts";
 
 const dataPath = process.env.MCPAL_DESKTOP_DATA;
@@ -56,12 +58,35 @@ async function startDesktop(): Promise<void> {
   }, undefined, {
     api,
     onReply: (reply) => speech.reply(reply),
-    onSessionChange: () => speech.cancel(),
+    onSessionChange: () => {
+      speech.cancel();
+      voice.cancel();
+    },
     invalidateLiveReplacement: () => live.invalidateReplacement(),
     liveAction: (intent) => {
       if (intent.kind === "follow") live.replaceFollow(intent.target);
       if (intent.kind === "stop") live.stop();
     },
+  });
+  const asrFixture = process.env.MCPAL_ASR_FIXTURE === "1";
+  const voice = new VoiceInput({
+    open: (events, mode) => asrFixture ? openAsrFixture(events, mode) : openVosk(events, process.env),
+    publish: (state) => {
+      if (!window.isDestroyed()) window.webContents.send("desktop:asr-state", state);
+    },
+    interrupt: () => speech.cancel(),
+    now: () => performance.timeOrigin + performance.now(),
+    window: () => session.nextInputWindow(),
+    submit: (text) => {
+      speech.cancel();
+      return session.submitText(text, "voice");
+    },
+  });
+  window.webContents.session.setPermissionRequestHandler((contents, permission, decide, details) => {
+    decide(contents === window.webContents && permission === "media" &&
+      details.isMainFrame && details.requestingUrl === page.href &&
+      "mediaTypes" in details && details.mediaTypes?.length === 1 &&
+      details.mediaTypes[0] === "audio" && voice.snapshot().phase === "recording");
   });
 
   function handle(
@@ -106,6 +131,7 @@ async function startDesktop(): Promise<void> {
     session.setApiLive(enabled);
   });
   handle("desktop:stop", () => {
+    voice.cancel();
     speech.cancel();
     session.stop();
   });
@@ -119,6 +145,26 @@ async function startDesktop(): Promise<void> {
   handle("desktop:speech-settled", (id) => {
     if (typeof id !== "number" || !Number.isSafeInteger(id)) throw new TypeError("Invalid speech ID");
     speech.settled(id);
+  });
+  handle("desktop:asr-config", () => ({ fixture: asrFixture, configured: !!process.env.MCPAL_ASR_MODEL }));
+  handle("desktop:asr-enable", (enabled) => {
+    if (typeof enabled !== "boolean") throw new TypeError("Invalid ASR route");
+    voice.setEnabled(enabled);
+  });
+  handle("desktop:asr-start", (mode) => voice.start(asrFixture && typeof mode === "string" ? mode : ""));
+  handle("desktop:asr-audio", (id, pcm) => {
+    if (typeof id === "number" && pcm instanceof Uint8Array) voice.write(id, pcm);
+  });
+  handle("desktop:asr-release", (id, voicedAt, releasedAt) => {
+    if (typeof id === "number" && (voicedAt === null || typeof voicedAt === "number") && typeof releasedAt === "number") {
+      voice.release(id, voicedAt, releasedAt);
+    }
+  });
+  handle("desktop:asr-cancel", (id) => {
+    if (id === undefined || typeof id === "number") voice.cancel(id);
+  });
+  handle("desktop:asr-device-error", (id) => {
+    if (typeof id === "number") voice.fail(id, "无法采集麦克风，请检查设备和 Windows 权限。");
   });
   const live = new LiveMinecraftSession((state) => {
     const observation = state.observation;
@@ -138,8 +184,12 @@ async function startDesktop(): Promise<void> {
   handle("minecraft:connect", (settings) => live.open(settings));
   handle("minecraft:disconnect", () => live.disconnect());
   handle("minecraft:follow", (target) => live.follow(target));
-  handle("minecraft:stop", () => live.stop());
+  handle("minecraft:stop", () => {
+    voice.cancel();
+    live.stop();
+  });
   window.on("closed", () => {
+    voice.cancel();
     speech.dispose();
     session.dispose();
     live.disconnect();

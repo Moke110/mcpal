@@ -17,6 +17,14 @@ contextBridge.exposeInMainWorld("companion", {
   cancelSpeech: () => ipcRenderer.invoke("desktop:speech-cancel"),
   settleSpeech: (id) => ipcRenderer.invoke("desktop:speech-settled", id),
   onSpeech: (listener) => ipcRenderer.on("desktop:speech-event", (_event, event) => listener(event)),
+  asrConfig: () => ipcRenderer.invoke("desktop:asr-config"),
+  enableAsr: (enabled) => ipcRenderer.invoke("desktop:asr-enable", enabled),
+  startAsr: (mode) => ipcRenderer.invoke("desktop:asr-start", mode),
+  sendAsrAudio: (id, pcm) => ipcRenderer.invoke("desktop:asr-audio", id, pcm),
+  releaseAsr: (id, voicedAt, releasedAt) => ipcRenderer.invoke("desktop:asr-release", id, voicedAt, releasedAt),
+  cancelAsr: (id) => ipcRenderer.invoke("desktop:asr-cancel", id),
+  failAsrDevice: (id) => ipcRenderer.invoke("desktop:asr-device-error", id),
+  onAsr: (listener) => ipcRenderer.on("desktop:asr-state", (_event, state) => listener(state)),
   onState: (listener) => {
     ipcRenderer.on("desktop:state", (_event, state) => listener(state));
   },
