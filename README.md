@@ -4,6 +4,12 @@
 
 ## 安装与运行
 
+### Windows 便携版
+
+解压便携包后双击 `MC-Pal.exe`。首次运行使用模拟模式。通过窗口中的「联合验收」打开本机设置目录并查看现场核对项。[搭建与验收步骤](docs/windows-acceptance.md)
+
+在 Windows x64 的 Node.js 24 中，先安装依赖，再执行 `npm.cmd run package:windows`。命令将 ZIP 输出到 `tmp/windows-release-*`。默认复用已安装的 Electron，亦可用 `MCPAL_ELECTRON_RUNTIME` 指向同版本的 Windows x64 运行时目录。用 `node scripts/smoke-windows.mjs <ZIP 路径>` 在新配置目录中验证打包后的模拟体验。
+
 ### 桌面模拟
 
 使用 Node.js 24 LTS，在 PowerShell 中启动桌面伙伴。首次启动会下载锁定版本的 Electron，需要网络连接。模拟无需配置 Minecraft、模型、账号或麦克风。

@@ -168,6 +168,7 @@ $("local-start").addEventListener("click", () => bridge.startLocal().catch(showE
 $("local-stop").addEventListener("click", () => bridge.stopLocal().catch(showError));
 $("model-backend").addEventListener("change", (event) => bridge.selectBackend(event.target.value).catch(showError));
 $("api-live").addEventListener("change", (event) => bridge.setApiLive(event.target.checked).catch(showError));
+$("open-settings-folder").addEventListener("click", () => bridge.openSettingsFolder().catch(showError));
 if (bridge) {
   bridge.onState(render);
   bridge.snapshot().then(render).catch(showError);

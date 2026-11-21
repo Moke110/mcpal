@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("companion", {
   snapshot: () => ipcRenderer.invoke("desktop:snapshot"),
+  openSettingsFolder: () => ipcRenderer.invoke("desktop:settings-folder"),
   submit: (text, source) => ipcRenderer.invoke("desktop:submit", text, source),
   advanceObservation: () => ipcRenderer.invoke("desktop:observe"),
   setTimeoutNext: (enabled) => ipcRenderer.invoke("desktop:timeout", enabled),

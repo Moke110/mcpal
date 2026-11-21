@@ -246,22 +246,23 @@ export class SimulationSession {
     this.#replacement = null;
     this.#addMessage({ role: "operator", source, text: input, ...(player ? { player } : {}) });
     if (isStopRequest(input)) {
-      this.#stop(live);
+      this.stop();
       if (source === "minecraft") this.#reply("已请求停止。", source, replyRoute);
       return null;
     }
     const timeout = this.#state.timeoutNext;
     this.#state.timeoutNext = false;
-    return this.#scheduler.submit({ text: input, source, timeout, live, replyRoute });
+    const resolved = player
+      ? input.replace(/^((?:请\s*)?(?:改成跟随|改为跟随|改跟|跟随|跟着)\s*)我(?=[。！!\s]*$)/u,
+        (_match, command: string) => command + player)
+      : input;
+    return this.#scheduler.submit({ text: resolved, source, timeout, live, replyRoute });
   }
 
   stop(): void {
-    this.#stop(this.#state.api.live);
-  }
-
-  #stop(live: boolean): void {
     this.#interruptPlayback();
-    if (live) this.#options.liveAction?.({ kind: "stop" });
+    // Revoking locally authorized actions does not require permission to send observations to a model.
+    this.#options.liveAction?.({ kind: "stop" });
     this.#beginCleanup(null);
     this.#scheduler.cancel();
   }
