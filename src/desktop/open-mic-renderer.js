@@ -10,14 +10,17 @@ const source = find("asr-device");
 const scenario = find("open-mic-scenario");
 const config = await bridge.asrConfig();
 const now = () => performance.timeOrigin + performance.now();
+const clock = new Intl.DateTimeFormat("zh-CN", {
+  hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3, hour12: false,
+});
 let graph;
 let reading;
 let liveTask;
 let simTask;
 
-function metric(name, time, text = "") {
-  find("open-mic-" + name).textContent = time == null ? "—" :
-    new Date(time).toLocaleTimeString("zh-CN", { fractionalSecondDigits: 3 }) + text;
+function metric(name, time, text = "", start = null) {
+  const elapsed = start === null || time === null ? "" : ` · +${Math.max(0, Math.round(time - start))} ms`;
+  find("open-mic-" + name).textContent = time === null ? "—" : clock.format(time) + elapsed + text;
 }
 
 function availability() {
@@ -192,7 +195,7 @@ bridge.onAsr((state) => {
     return;
   }
   if (state.phase === "final" || state.phase === "empty") {
-    metric("final", state.finalAt, state.final ? " · " + state.final : " · 未识别");
+    metric("final", state.finalAt, state.final ? " · " + state.final : " · 未识别", reading.at);
     if (isStopRequest(state.final) && (reading.liveFollow || reading.simFollow)) {
       observeStop(state.finalAt, reading.liveFollow);
     }
@@ -202,13 +205,13 @@ bridge.onAsr((state) => {
 
 let stopRequest = null;
 function observeStop(at, live) {
-  stopRequest = { live, expires: at + 5000 };
+  stopRequest = { live, at, expires: at + 5000 };
   void bridge.snapshot().then(observeSim);
   void window.minecraft.snapshot().then(observeLive);
 }
 function showTaskStopped(reason) {
   if (!stopRequest || now() > stopRequest.expires) return;
-  metric("stop", now(), " · " + reason);
+  metric("stop", now(), " · " + reason, stopRequest.at);
   stopRequest = null;
 }
 function observeSim({ task, api }) {
@@ -226,7 +229,7 @@ void bridge.snapshot().then(observeSim);
 window.minecraft.onState(observeLive);
 void window.minecraft.snapshot().then(observeLive);
 window.addEventListener("speech-interrupted", ({ detail }) => {
-  if (reading && detail >= reading.at) metric("cut", detail, " · 输出末帧");
+  if (reading && detail >= reading.at) metric("cut", detail, " · 输出末帧", reading.at);
 });
 window.addEventListener("speech-reference-state", ({ detail }) => {
   if (!graph) return;
