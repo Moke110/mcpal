@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld("minecraft", {
   disconnect: () => ipcRenderer.invoke("minecraft:disconnect"),
   follow: (target) => ipcRenderer.invoke("minecraft:follow", target),
   stop: () => ipcRenderer.invoke("minecraft:stop"),
+  setChatRoute: (enabled) => ipcRenderer.invoke("minecraft:chat-route", enabled),
   onState: (listener) => {
     ipcRenderer.on("minecraft:state", (_event, state) => listener(state));
   },

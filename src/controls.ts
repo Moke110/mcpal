@@ -8,6 +8,7 @@ import { createWorkstationFixture, type RunFixture } from './workstation-fixture
 
 type Report = (event: string, fields?: Record<string, unknown>) => void
 type Command = { kind: 'follow' | 'come' | 'stop' | 'status' | 'help' | 'act'; arg: string }
+export type TrustedMinecraftChat = Readonly<{ player: string; text: string }>
 
 export function parseCommand(message: string): Command | null {
   if (!message.startsWith('!')) return null
@@ -35,7 +36,7 @@ export function authorizedPlayer(bot: Pick<Bot, 'players' | 'username'>, config:
 
 export function createControls(bot: Bot, config: Config & { control: NonNullable<Config['control']> },
   observe: () => Observation | null, report: Report, recover: () => void, workstationTest: boolean,
-  isCurrentEntity: (id: number) => boolean) {
+  isCurrentEntity: (id: number) => boolean, onTrustedChat?: (message: TrustedMinecraftChat) => void) {
   const skills = createSkills(bot, isCurrentEntity)
   const tasks = createTasks(report, recover)
   const reported = new Set<Promise<TaskResult>>()
@@ -47,10 +48,11 @@ export function createControls(bot: Bot, config: Config & { control: NonNullable
   })
 
   function reply(message: string) {
-    if (closing || !observe()) return
+    if (closing || !observe()) return false
     const safe = message.replace(/[\p{Cc}§]/gu, ' ').trim().slice(0, 200)
-    try { bot.chat(`[Companion] ${safe}`) }
-    catch { report('chat_reply_failed') }
+    if (!safe) return false
+    try { bot.chat(`[Companion] ${safe}`); return true }
+    catch { report('chat_reply_failed'); return false }
   }
 
   function snapshot() {
@@ -121,14 +123,20 @@ export function createControls(bot: Bot, config: Config & { control: NonNullable
   }
 
   bot._client.on('playerChat', ({ sender, plainMessage, verified }) => {
-    if (closing || !observe() || typeof plainMessage !== 'string' || !plainMessage.startsWith('!')) return
+    if (closing || !observe() || typeof plainMessage !== 'string' ||
+      (!onTrustedChat && !plainMessage.startsWith('!'))) return
     const player = authorizedPlayer(bot, config, sender, verified)
     if (!player) return
+    if (onTrustedChat) {
+      onTrustedChat({ player, text: plainMessage })
+      return
+    }
     dispatch(player, plainMessage, reply)
   })
 
   return {
     execute,
+    reply,
     fixture,
     status: tasks.status,
     cancel: tasks.cancel,
