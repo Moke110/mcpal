@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="./live.css">
     <script defer src="./renderer.js"></script>
     <script type="module" src="./speech-renderer.js"></script>
+    <script type="module" src="./asr-renderer.js"></script>
     <script defer src="./live-renderer.js"></script>
     <script defer src="./world-renderer.js"></script>
   </head>
@@ -107,6 +108,37 @@
           <label class="control"><input id="timeout" type="checkbox"> 让下一条回复超时</label>
           <button id="simulation-reconnect" type="button">模拟重连</button>
         </section>
+        <section class="panel" aria-labelledby="asr-title">
+          <h2 id="asr-title">本机按键说话</h2>
+          <label class="control"><input id="asr-enable" type="checkbox" disabled> 启用麦克风</label>
+          <label class="control" for="asr-device">输入设备 <select id="asr-device"><option value="">系统默认设备</option></select></label>
+          <p id="asr-device-status" role="status">等待配置</p>
+          <label id="asr-fixture" hidden>模拟场景
+            <select id="asr-fixture-mode">
+              <option value="status">状态追问</option>
+              <option value="follow">跟随小明</option>
+              <option value="stop">停止</option>
+              <option value="late">延迟结果</option>
+              <option value="empty">空识别</option>
+              <option value="device-error">设备出错</option>
+            </select>
+          </label>
+          <div class="speech-controls">
+            <button id="asr-record" type="button" aria-pressed="false" disabled>按住说话</button>
+            <button id="asr-cancel" type="button">取消录音</button>
+            <button id="asr-refresh" type="button">刷新麦克风</button>
+          </div>
+          <dl class="metrics">
+            <div><dt>状态</dt><dd id="asr-status" role="status">待启用</dd></div>
+            <div><dt>识别中</dt><dd id="asr-partial">—</dd></div>
+            <div><dt>最终文字</dt><dd id="asr-final">—</dd></div>
+            <div><dt>语音结束估计</dt><dd id="asr-voice-time">—</dd></div>
+            <div><dt>松键</dt><dd id="asr-release-time">—</dd></div>
+            <div><dt>ASR 最终结果</dt><dd id="asr-final-time">—</dd></div>
+            <div><dt>读取窗口</dt><dd id="asr-window">—</dd></div>
+          </dl>
+        </section>
+
         <section class="panel" aria-labelledby="speech-title">
           <h2 id="speech-title">本机播报</h2>
           <label class="control" for="speech-device">输出设备 <select id="speech-device"><option value="">系统默认设备</option></select></label>
