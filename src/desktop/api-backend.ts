@@ -8,11 +8,11 @@ export type ApiResult = { kind: "completed"; output: ModelOutput } | ApiFailure;
 
 export type ApiBackend = {
   origin: string;
-  check(): Promise<ApiCheck>;
+  check(signal?: AbortSignal): Promise<ApiCheck>;
   generate(input: ModelInput, signal: AbortSignal, first: () => void): Promise<ApiResult>;
 };
 
-export function createApiBackend(env: NodeJS.ProcessEnv): ApiBackend | null {
+export function createApiBackend(env: NodeJS.ProcessEnv, settings: { maxTokens?: number } = {}): ApiBackend | null {
   const key = env.MCPAL_API_KEY?.trim();
   const model = env.MCPAL_API_MODEL?.trim();
   const baseUrl = env.MCPAL_API_BASE_URL?.trim();
@@ -29,10 +29,11 @@ export function createApiBackend(env: NodeJS.ProcessEnv): ApiBackend | null {
   const headers = { authorization: "Bearer " + key };
   return {
     origin: base.origin,
-    async check() {
+    async check(signal) {
       try {
+        const timeout = AbortSignal.timeout(5000);
         const response = await fetch(new URL("models", base), {
-          headers, redirect: "error", signal: AbortSignal.timeout(5000),
+          headers, redirect: "error", signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         });
         if (!response.ok) {
           void response.body?.cancel().catch(() => {});
@@ -51,7 +52,7 @@ export function createApiBackend(env: NodeJS.ProcessEnv): ApiBackend | null {
           method: "POST", redirect: "error", signal,
           headers: { ...headers, "content-type": "application/json", accept: "text/event-stream" },
           body: JSON.stringify({
-            model, stream: true,
+            model, stream: true, max_tokens: settings.maxTokens,
             messages: [
               { role: "system", content: modelInstructions },
               { role: "user", content: JSON.stringify(input, (_field, value: unknown) =>

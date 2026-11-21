@@ -1,6 +1,7 @@
 import { monotonicClock, ReadWindowScheduler } from "./read-window.ts";
 import type { ReadRequest, ReadResult, WindowClock } from "./read-window.ts";
 import type { ApiBackend, ApiCheck, ApiResult } from "./api-backend.ts";
+import type { LocalBackend, LocalView } from "./local-backend.ts";
 import { authorizeModelOutput } from "./model-protocol.ts";
 import type { GameIntent, ModelObservation } from "./model-protocol.ts";
 import type { LiveMinecraftState, MinecraftOperatorInput } from "./live-session.ts";
@@ -26,6 +27,7 @@ type FrozenObservation = { simulated: Observation; live: Observation | null };
 type ApiStatus = { kind: "idle" | "pending" } | ApiCheck;
 type SessionOptions = {
   api?: ApiBackend | null;
+  local?: LocalBackend | null;
   liveAction?: (intent: GameIntent) => void;
   invalidateLiveReplacement?: () => void;
   onReply?: (text: string) => void;
@@ -42,7 +44,9 @@ type Scenario = (typeof scenarios)[number];
 type SimulationView = {
   mode: "simulation";
   connection: "offline";
-  backend: "simulated" | "api";
+  backend: "simulated" | "api" | "local";
+  localRequest: ApiStatus;
+  localCancelled: number;
   api: {
     origin: string | null;
     test: ApiStatus;
@@ -62,6 +66,7 @@ type SimulationView = {
 };
 export type SimulationState = SimulationView & {
   window: ReturnType<ReadWindowScheduler<Input, FrozenObservation, Intent>["snapshot"]>;
+  local: LocalView | null;
 };
 
 export class SimulationSession {
@@ -69,6 +74,8 @@ export class SimulationSession {
     mode: "simulation",
     connection: "offline",
     backend: "simulated",
+    localRequest: { kind: "idle" },
+    localCancelled: 0,
     api: { origin: null, test: { kind: "idle" }, request: { kind: "idle" }, live: false, cancelled: 0, liveTask: null },
     observation: observations[0]!,
     observationVersion: 1,
@@ -86,6 +93,7 @@ export class SimulationSession {
   readonly #publish: (state: SimulationState) => void;
   readonly #clock: WindowClock;
   readonly #scheduler: ReadWindowScheduler<Input, FrozenObservation, Intent>;
+  readonly #unsubscribeLocalFailure?: () => void;
 
   readonly #options: SessionOptions;
   #liveObservation: Observation | null = null;
@@ -101,12 +109,22 @@ export class SimulationSession {
       clock,
       start: (request, result) => {
         const live = request.inputs.at(-1)?.live;
-        if (this.#state.backend === "api" && (!live || this.#state.api.live)) void this.#generate(request, result);
+        const selected = this.#state.backend;
+        if (selected === "local" || (selected === "api" && (!live || this.#state.api.live))) {
+          void this.#generate(request, result, selected);
+        }
         else this.#simulate(request, result);
       },
       commit: (intent) => this.#commitIntent(intent),
       changed: () => this.#updateWindow(),
-      abortSuperseded: () => this.#state.backend === "api",
+      abortSuperseded: () => this.#state.backend !== "simulated",
+    });
+    this.#unsubscribeLocalFailure = options.local?.onRuntimeFailure(() => {
+      if (this.#state.backend !== "local") return;
+      const window = this.#scheduler.snapshot();
+      if (window.runningWindow === null && !window.queuedInputs && window.result !== "staged") return;
+      this.#state.localRequest = { kind: "cancelled" };
+      this.#scheduler.cancel();
     });
     this.#observe();
   }
@@ -114,7 +132,7 @@ export class SimulationSession {
   snapshot(): SimulationState {
     const state = structuredClone(this.#state);
     if (state.api.live) state.observation = structuredClone(this.#liveObservation ?? { place: "实机观测未知", players: [] });
-    return { ...state, window: this.#scheduler.snapshot() };
+    return { ...state, window: this.#scheduler.snapshot(), local: this.#options.local?.snapshot() ?? null };
   }
 
   advanceObservation(): void {
@@ -134,23 +152,35 @@ export class SimulationSession {
     if (!this.#disposed) this.#emit();
   }
 
-  setBackend(backend: "simulated" | "api"): void {
-    if (backend === this.#state.backend || (backend === "api" && !this.#options.api)) return;
+  setBackend(backend: "simulated" | "api" | "local"): void {
+    if (backend === this.#state.backend || (backend === "api" && !this.#options.api) ||
+      (backend === "local" && !this.#options.local)) return;
+    if (this.#state.backend === "local") void this.#options.local?.stop();
     this.switchSession();
     this.#apiGeneration++;
     this.#state.backend = backend;
     this.#state.api.request = { kind: "idle" };
-    if (backend === "simulated") this.#state.api.live = false;
+    this.#state.localRequest = { kind: "idle" };
+    this.#state.api.live = false;
     this.#observe();
     this.#emit();
   }
 
   setApiLive(live: boolean): void {
-    if (this.#state.backend !== "api" || live === this.#state.api.live) return;
+    if (this.#state.backend === "simulated" || live === this.#state.api.live) return;
     this.switchSession();
     this.#state.api.live = live;
     this.#observe();
     this.#emit();
+  }
+
+  startLocal(): Promise<void> | undefined {
+    if (this.#state.backend === "local") return this.#options.local?.start();
+  }
+
+  stopLocal(): Promise<void> | undefined {
+    if (this.#state.backend === "local") this.switchSession();
+    return this.#options.local?.stop();
   }
 
   updateLiveObservation(observation: Observation | null, task: LiveMinecraftState["task"]): void {
@@ -164,6 +194,7 @@ export class SimulationSession {
       this.#apiGeneration++;
       this.#scheduler.switchSession();
       this.#state.api.request = { kind: "idle" };
+      this.#state.localRequest = { kind: "idle" };
     }
     this.#observe();
     this.#emit();
@@ -236,6 +267,7 @@ export class SimulationSession {
 
   dispose(): void {
     this.#disposed = true;
+    this.#unsubscribeLocalFailure?.();
     this.#scheduler.dispose();
     this.#playbackTimer?.();
     this.#cleanupTimer?.();
@@ -243,19 +275,27 @@ export class SimulationSession {
     this.#backendTimers.clear();
   }
 
-  async #generate(request: ReadRequest<Input, FrozenObservation>, result: ReadResult<Intent>): Promise<void> {
-    const backend = this.#options.api;
+  async #generate(
+    request: ReadRequest<Input, FrozenObservation>, result: ReadResult<Intent>, selected: "api" | "local",
+  ): Promise<void> {
+    const local = selected === "local";
+    const backend = local ? this.#options.local : this.#options.api;
     const input = request.inputs.at(-1);
     if (!backend || !input) {
       result.reject();
       return;
     }
     const generation = ++this.#apiGeneration;
-    this.#state.api.request = { kind: "pending" };
+    const setStatus = (status: ApiStatus) => {
+      if (local) this.#state.localRequest = status;
+      else this.#state.api.request = status;
+    };
+    setStatus({ kind: "pending" });
     request.signal.addEventListener("abort", () => {
       if (this.#disposed) return;
-      this.#state.api.cancelled++;
-      if (generation === this.#apiGeneration) this.#state.api.request = { kind: "cancelled" };
+      if (local) this.#state.localCancelled++;
+      else this.#state.api.cancelled++;
+      if (generation === this.#apiGeneration) setStatus({ kind: "cancelled" });
       this.#emit();
     }, { once: true });
     const observation = (input.live ? request.observation?.live : request.observation?.simulated) ?? null;
@@ -263,7 +303,7 @@ export class SimulationSession {
       inputs: request.inputs.filter(({ live }) => live === input.live).map(({ text }) => text), observation,
     }, request.signal, result.first);
     if (this.#disposed || request.signal.aborted || generation !== this.#apiGeneration) return;
-    this.#state.api.request = response.kind === "http" ? response : { kind: response.kind };
+    setStatus(response.kind === "http" ? response : { kind: response.kind });
     if (response.kind !== "completed") {
       result.reject();
       return;

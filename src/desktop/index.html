@@ -82,18 +82,34 @@
             <select id="model-backend">
               <option value="simulated">模拟后端</option>
               <option value="api">外部 API</option>
+              <option value="local">本地模型</option>
             </select>
+          </label>
+          <label id="api-live-option" class="control" hidden>
+            <input id="api-live" type="checkbox"> 使用实机观测与控制
           </label>
           <div>
             <p id="api-origin" class="live-note"></p>
             <button id="api-test" type="button">测试 API 连接</button>
-            <label id="api-live-option" class="control" hidden>
-              <input id="api-live" type="checkbox"> 使用实机观测与控制
-            </label>
             <dl aria-live="polite">
               <div><dt>连接测试</dt><dd id="api-test-result"></dd></div>
               <div><dt>API 请求</dt><dd id="api-request"></dd></div>
               <div><dt>取消尝试</dt><dd id="api-cancelled"></dd></div>
+            </dl>
+          </div>
+          <p id="local-unconfigured" class="live-note">本地后端需要配置 Windows llama-server 与 GGUF 文件。</p>
+          <div id="local-panel" hidden>
+            <p id="local-configuration" class="live-note"></p>
+            <button id="local-start" type="button">启动并预热</button>
+            <button id="local-stop" type="button">卸载模型</button>
+            <dl>
+              <div><dt>本地状态</dt><dd id="local-status" aria-live="polite"></dd></div>
+              <div><dt>采样独显峰值</dt><dd id="local-dedicated"></dd></div>
+              <div><dt>采样共享峰值</dt><dd id="local-shared"></dd></div>
+              <div><dt>严格上限</dt><dd id="local-limit"></dd></div>
+              <div><dt>采样记录</dt><dd id="local-sampling"></dd></div>
+              <div><dt>本地请求</dt><dd id="local-request"></dd></div>
+              <div><dt>取消尝试</dt><dd id="local-cancelled"></dd></div>
             </dl>
           </div>
           <label class="control" for="simulation-scenario">模拟延迟
