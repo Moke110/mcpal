@@ -8,19 +8,21 @@ import { readBlock, readObservation } from './perception.ts'
 type Report = (event: string, fields?: Record<string, unknown>) => void
 
 export function connect(config: Config, report: Report, onAuthPrompt: (message: string) => void,
-  { workstationTest = false } = {}) {
+  { workstationTest = false, profilesFolder = resolve('.runtime', 'profiles') } = {}) {
   let stopping = false
   report('connecting', { host: config.host, port: config.port, auth: config.auth, version: config.version || 'auto' })
   const bot = mineflayer.createBot({
     host: config.host, port: config.port, username: config.username,
     auth: config.auth, version: config.version || undefined,
-    profilesFolder: resolve('.runtime', 'profiles'),
+    profilesFolder,
     physicsEnabled: config.control !== undefined, respawn: false, hideErrors: true, logErrors: false,
     onMsaCode: ({ message }) => { if (!stopping) onAuthPrompt(message) },
   })
   let spawned = false
   let positioned = false
   let inventoryReceived = false
+  const currentEntities = new Set<number>()
+  const isCurrentEntity = (id: number) => currentEntities.has(id)
   let ended = false
   let interval: NodeJS.Timeout | undefined
   let stopReason: string | undefined
@@ -73,7 +75,7 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
 
   function getStatus() {
     return ready()
-      ? readObservation(bot, inventoryReceived, controls?.status())
+      ? readObservation(bot, inventoryReceived, controls?.status(), isCurrentEntity)
       : null
   }
 
@@ -99,12 +101,17 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
     positioned = true
     observeWhenReady()
   })
+  bot.on('entitySpawn', entity => { currentEntities.add(entity.id) })
+  bot.on('entityGone', entity => { currentEntities.delete(entity.id) })
   bot.on('respawn', () => {
-    controls?.cancel('Dimension changed or player respawned')
     spawned = false
     positioned = false
+    inventoryReceived = false
+    currentEntities.clear()
     clearInterval(interval)
     interval = undefined
+    controls?.cancel('Dimension changed or player respawned')
+    report('world_unavailable')
   })
   transport.on('window_items', (packet: { windowId: number }) => {
     if (packet.windowId === 0) inventoryReceived = true
@@ -127,7 +134,7 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
         () => bot.health === 0 ? null : getStatus(), report, () => {
           close('operationCleanupTimeout')
           transport.socket?.destroy()
-        }, workstationTest)
+        }, workstationTest, isCurrentEntity)
     } catch (error) {
       report('error', { message: error instanceof Error ? error.message : String(error) })
       close('controlSetupFailed')
