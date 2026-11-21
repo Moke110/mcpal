@@ -80,7 +80,11 @@ export class LiveMinecraftSession {
         onTrustedChat: ({ player, text }) => {
           if (generation !== this.#generation || this.#state.phase !== "ready") return;
           const request = /^!pal\s+([\s\S]+)$/iu.exec(text.trim())?.[1]?.trim();
-          if (request) this.#receiveChat?.({ player, text: request, replyRoute: this.chatReplyRoute() });
+          if (!request) return;
+          const observation = this.#connection?.io.read();
+          if (!observation) return;
+          this.#report("snapshot", { observation });
+          this.#receiveChat?.({ player, text: request, replyRoute: this.chatReplyRoute() });
         },
       });
       this.#connection = connection;

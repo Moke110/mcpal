@@ -3,6 +3,41 @@ import { test } from "node:test";
 import { SimulationSession } from "../src/desktop/sim-session.ts";
 import { fakeClock } from "./fake-clock.ts";
 
+test("trusted Minecraft input shares conversation scheduling with game observation and follows the originating reply route", () => {
+  const { clock, advance } = fakeClock();
+  const actions: unknown[] = [];
+  const sent: { route: number | null; text: string }[] = [];
+  const session = new SimulationSession(() => {}, clock, {
+    liveAction: (intent) => actions.push(intent),
+    minecraftReply: (route, text) => { sent.push({ route, text }); return route !== null; },
+  });
+  const task = { phase: "idle", target: null, result: null } as const;
+  const live = { place: "overworld", health: 13, inventory: [], players: [{ name: "Owner", distance: 8 }] };
+  session.updateLiveObservation(live, task);
+  const submit = (text: string, replyRoute: number | null = 1) => {
+    session.submitMinecraft({ player: "Owner", text, replyRoute });
+  };
+  submit("生命值", null);
+  advance(850);
+  assert.deepEqual(session.snapshot().messages.slice(-2), [
+    { role: "operator", source: "minecraft", player: "Owner", text: "生命值" },
+    { role: "companion", source: "minecraft", text: "当前生命值为 13。", publicReply: false },
+  ]);
+  submit("跟随 Owner");
+  advance(1650);
+  assert.deepEqual(actions, [{ kind: "follow", target: "Owner" }]);
+  assert.deepEqual(sent.at(-1), { route: 1, text: "正在跟随Owner。" });
+  submit("停止");
+  assert.deepEqual(actions.at(-1), { kind: "stop" });
+  assert.match(sent.at(-1)?.text ?? "", /停止/u);
+  submit("背包");
+  session.updateLiveObservation(null, task);
+  session.updateLiveObservation(live, task);
+  advance(3250);
+  assert.doesNotMatch(sent.at(-1)?.text ?? "", /背包/u);
+  session.dispose();
+});
+
 test("状态追问读取变化后的游戏观测，并独立显示回复、任务和播报", () => {
   const { clock, advance } = fakeClock();
   const session = new SimulationSession(() => {}, clock);
