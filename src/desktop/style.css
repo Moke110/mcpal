@@ -121,6 +121,16 @@ li span, dt { color: #506554; }
 dd { margin: 0; text-align: right; font-weight: 600; }
 .control { margin-top: 12px; font-size: .9rem; cursor: pointer; }
 .control input { accent-color: #28543b; }
+#simulation-scenario {
+  padding: 3px 6px;
+  border: 1px solid #cbd5c8;
+  border-radius: 6px;
+  background: #fcfdf8;
+  color: inherit;
+  font: inherit;
+}
+#simulation-reconnect { margin-top: 10px; }
+#window-counts { max-width: 72%; }
 
 @media (max-width: 730px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }

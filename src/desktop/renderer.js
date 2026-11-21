@@ -11,7 +11,13 @@ const replyLabels = {
   ready: "回复已显示",
   timeout: "回复超时 · 已丢弃",
   cancelled: "已停止等待",
+  rejected: "结果校验失败",
 };
+const windowLabels = {
+  idle: "等待输入", reading: "等待读取截止", running: "生成结果", staged: "候选暂存",
+  committed: "已在下一窗提交", timeout: "已过期", cancelled: "已取消", rejected: "校验失败",
+};
+const milliseconds = (value) => value === null ? "—" : `${Math.round(value)} ms`;
 const playbackLabels = {
   idle: "未开始",
   playing: "播报中",
@@ -59,6 +65,14 @@ function render(state) {
   $("task").textContent = target ? `${taskLabels[phase]} · ${target}` : taskLabels[phase];
   $("playback").textContent = playbackLabels[state.playback.phase];
   $("timeout").checked = state.timeoutNext;
+  const read = state.window;
+  $("read-window").textContent = `会话 ${read.session} · #${read.id} · ${milliseconds(read.readMs)} · ${read.frozen ? "已冻结" : "读取中"}`;
+  $("next-read").textContent = milliseconds(read.nextReadMs);
+  $("window-result").textContent = windowLabels[read.result];
+  $("window-latency").textContent = `${milliseconds(read.firstMs)} / ${milliseconds(read.completeMs)}`;
+  $("window-counts").textContent = `${read.samples} 次 · 成功 ${read.successful} · 超时 ${read.timeout} · 取消 ${read.cancelled} · 校验失败 ${read.rejected} · 丢弃 ${read.discarded}`;
+  $("window-percentiles").textContent = `${milliseconds(read.p50Ms)} / ${milliseconds(read.p95Ms)}`;
+  $("simulation-scenario").value = state.scenario;
 }
 
 function showError() {
@@ -88,6 +102,8 @@ composer.addEventListener("submit", (event) => {
 $("voice").addEventListener("click", () => void submit("voice"));
 $("advance").addEventListener("click", () => bridge.advanceObservation().catch(showError));
 $("timeout").addEventListener("change", (event) => bridge.setTimeoutNext(event.target.checked).catch(showError));
+$("simulation-scenario").addEventListener("change", (event) => bridge.setSimulationScenario(event.target.value).catch(showError));
+$("simulation-reconnect").addEventListener("click", () => bridge.reconnectSimulation().catch(showError));
 $("stop").addEventListener("click", () => bridge.stop().catch(showError));
 if (bridge) {
   bridge.onState(render);
