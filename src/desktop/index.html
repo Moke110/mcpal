@@ -59,13 +59,34 @@
             <div><dt>模拟播报</dt><dd id="playback"></dd></div>
           </dl>
         </section>
+        <section class="panel" aria-labelledby="window-title">
+          <h2 id="window-title">读取窗口</h2>
+          <dl>
+            <div><dt>当前窗口</dt><dd id="read-window"></dd></div>
+            <div><dt>下一窗读取长度</dt><dd id="next-read"></dd></div>
+            <div><dt>结果</dt><dd id="window-result" aria-live="polite"></dd></div>
+            <div><dt>首字 / 完整校验</dt><dd id="window-latency"></dd></div>
+            <div><dt>样本</dt><dd id="window-counts"></dd></div>
+            <div><dt>成功 P50 / P95</dt><dd id="window-percentiles"></dd></div>
+          </dl>
+        </section>
         <section class="panel" aria-labelledby="settings-title">
           <h2 id="settings-title">连接与后端</h2>
           <dl>
             <div><dt>Minecraft</dt><dd>未连接</dd></div>
             <div><dt>模型后端</dt><dd>模拟后端</dd></div>
           </dl>
+          <label class="control" for="simulation-scenario">模拟延迟
+            <select id="simulation-scenario">
+              <option value="normal">正常</option>
+              <option value="fast">快</option>
+              <option value="slow">慢</option>
+              <option value="jitter">抖动</option>
+              <option value="duplicate">重复结果</option>
+            </select>
+          </label>
           <label class="control"><input id="timeout" type="checkbox"> 让下一条回复超时</label>
+          <button id="simulation-reconnect" type="button">模拟重连</button>
         </section>
       </aside>
     </div>

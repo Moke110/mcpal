@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { connect } from "../client.ts";
 import { LiveMinecraftSession } from "./live-session.ts";
-import { SimulationSession } from "./sim-session.ts";
+import { scenarios, SimulationSession } from "./sim-session.ts";
 
 const dataPath = process.env.MCPAL_DESKTOP_DATA;
 if (dataPath) app.setPath("userData", dataPath);
@@ -61,6 +61,12 @@ async function startDesktop(): Promise<void> {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid timeout setting");
     session.setTimeoutNext(enabled);
   });
+  handle("desktop:simulation-scenario", (id) => {
+    const scenario = scenarios.find((value) => value === id);
+    if (!scenario) throw new TypeError("Invalid simulation scenario");
+    session.setScenario(scenario);
+  });
+  handle("desktop:simulation-reconnect", () => session.switchSession());
   handle("desktop:stop", () => session.stop());
   const live = new LiveMinecraftSession((state) => {
     if (!window.isDestroyed()) window.webContents.send("minecraft:state", state);
