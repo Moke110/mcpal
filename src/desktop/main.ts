@@ -187,6 +187,7 @@ async function startDesktop(): Promise<void> {
     profilesFolder: join(app.getPath("userData"), "minecraft-profiles"),
   }), (message) => session.submitMinecraft(message));
   handle("minecraft:snapshot", () => live.snapshot());
+  handle("minecraft:view", () => live.readView());
   handle("minecraft:connect", (settings) => live.open(settings));
   handle("minecraft:disconnect", () => live.disconnect());
   handle("minecraft:follow", (target) => live.follow(target));

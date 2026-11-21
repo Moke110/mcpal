@@ -46,3 +46,40 @@
 .live-chat { border-top: 1px solid #dce4d9; margin-top: 16px; padding-top: 12px; }
 #live-chat-log { padding-left: 20px; overflow-wrap: anywhere; }
 #live-chat-log li + li { margin-top: 4px; }
+#world-view {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  image-rendering: pixelated;
+}
+
+#world-view[hidden] { display: none; }
+#world-view-toggle[aria-pressed="true"] { background: #e4eddd; border-color: #68816c; }
+#world-view-status, #skin-preview-status { margin: 6px 0; color: #506554; font-size: .88rem; }
+
+.identity-preview {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.identity-preview canvas {
+  width: 48px;
+  height: 96px;
+  image-rendering: pixelated;
+  background: #e7e7dd;
+  border-radius: 6px;
+}
+
+.identity-preview label { display: block; margin: 5px 0; font-size: .88rem; font-weight: 600; }
+.identity-preview input { max-width: 100%; }
+.identity-preview input[type="file"] { font: inherit; font-size: .82rem; }
+#desktop-nickname {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #cbd5c8;
+  border-radius: 6px;
+  font: inherit;
+}

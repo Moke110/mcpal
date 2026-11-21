@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
+import { createRequire } from 'node:module'
 import type { Server as TcpServer } from 'node:net'
 import { test } from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import minecraftData from 'minecraft-data'
 import protocol from 'minecraft-protocol'
+import { Vec3 } from 'vec3'
 import { connect } from '../src/client.ts'
 import type { Observation } from '../src/perception.ts'
+
+const prismarineChunk = createRequire(import.meta.url)('prismarine-chunk')
 
 for (const version of ['1.21.11', '26.1']) {
   test(`reads server packets and disconnects on ${version}`, { timeout: 12_000 }, (t) => observeSession(t, version))
@@ -23,6 +28,7 @@ async function observeSession(t: import('node:test').TestContext, version: strin
 
   const events: string[] = []
   const { promise: firstSnapshot, resolve: receive } = Promise.withResolvers<Observation>()
+  const { promise: nextLevel, resolve: receiveNextLevel } = Promise.withResolvers<Observation>()
   const { promise: nextDimension, resolve: receiveNextDimension } = Promise.withResolvers<Observation>()
   const client = connect({
     host, port: address.port, username: 'Companion', auth: 'offline',
@@ -32,6 +38,7 @@ async function observeSession(t: import('node:test').TestContext, version: strin
     if (event === 'snapshot') {
       const observation = fields?.observation as Observation
       receive(observation)
+      if (observation.position.x === 11.5) receiveNextLevel(observation)
       if (observation.dimension === 'the_nether') receiveNextDimension(observation)
     }
   }, () => assert.fail('offline login requested Microsoft authentication'))
@@ -82,9 +89,36 @@ async function observeSession(t: import('node:test').TestContext, version: strin
   assert.equal(snapshot.nearby.players[0]?.username, 'HostPlayer')
   assert.deepEqual(snapshot.blocks.map((block) => block.name), [null, null, null])
   if (version === '26.1') {
+    assert.equal(client.readView(), null, 'pose alone does not establish a loaded world view')
+    const Chunk = prismarineChunk(version)
+    const column = new Chunk({ minY: -64, worldHeight: 384 })
+    const block = { x: 11, y: 73, z: -5 }
+    column.setBlockStateId(new Vec3(11, 73, 11), data.blocksByName.stone!.defaultState)
+    peer.write('map_chunk', {
+      x: 0, z: -1, chunkData: column.dump(), heightmaps: [], blockEntities: [],
+      skyLightMask: [], blockLightMask: [], emptySkyLightMask: [], emptyBlockLightMask: [], skyLight: [], blockLight: [],
+    })
+    let view = client.readView()
+    for (let attempt = 0; !view && attempt < 30; attempt++) {
+      await delay(20)
+      view = client.readView()
+    }
+    assert.ok(view)
+    assert.deepEqual(view.eye, { ...position, y: 73.62 })
+    assert.equal(view.yaw, snapshot.orientation.yawRadians)
+    const index = (block.y - view.origin.y) * view.width ** 2 +
+      (block.z - view.origin.z) * view.width + block.x - view.origin.x
+    assert.equal(view.palette[view.voxels[index]!], 'stone')
     const login = data.loginPacket
     assert.ok(login.dimensionCodec)
     assert.ok('worldState' in login && login.worldState && typeof login.worldState === 'object')
+    peer.write('respawn', {
+      worldState: { ...login.worldState, name: 'minecraft:fixture_other' }, copyMetadata: 0,
+    })
+    peer.write('position', { ...position, x: 11.5, dx: 0, dy: 0, dz: 0, yaw: 0, pitch: 0, flags: 0, teleportId: 2 })
+    peer.write('update_health', { health: 17, food: 14, foodSaturation: 3 })
+    await nextLevel
+    assert.equal(client.readView(), null, 'a level change within the same dimension type rejects cached columns')
     const nether = login.dimensionCodec['minecraft:dimension_type'].entries
       .findIndex(({ key }: { key: string }) => key === 'minecraft:the_nether')
     assert.ok(nether >= 0)
@@ -92,14 +126,16 @@ async function observeSession(t: import('node:test').TestContext, version: strin
       worldState: { ...login.worldState, dimension: nether, name: 'minecraft:the_nether' },
       copyMetadata: 0,
     })
-    peer.write('position', { ...position, dx: 0, dy: 0, dz: 0, yaw: 90, pitch: 0, flags: 0, teleportId: 2 })
+    peer.write('position', { ...position, dx: 0, dy: 0, dz: 0, yaw: 90, pitch: 0, flags: 0, teleportId: 3 })
     peer.write('update_health', { health: 17, food: 14, foodSaturation: 3 })
     const current = await nextDimension
     assert.deepEqual(current.nearby.players, [])
     assert.deepEqual(current.nearby.entities, [])
     assert.equal(current.inventory, null)
+    assert.equal(client.readView(), null, 'new dimension does not draw the old chunk')
   }
   client.close()
+  assert.equal(client.readView(), null, 'closed session cannot supply a frame')
   assert.equal((await client.closed).requested, true)
   assert.equal(events.at(-1), 'disconnected')
 }
