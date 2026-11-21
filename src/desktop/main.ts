@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { loadEnvFile } from "node:process";
 import { connect } from "../client.ts";
 import { createApiBackend } from "./api-backend.ts";
+import { createLocalBackend } from "./llama-server.ts";
+import { openLocalFixture } from "./local-fixture.ts";
 import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
 import { SpeechOutput } from "./speech-output.ts";
@@ -14,6 +16,7 @@ import { synthesizeSpeechFixture, synthesizeWindowsSpeech } from "./windows-spee
 
 const dataPath = process.env.MCPAL_DESKTOP_DATA;
 if (dataPath) app.setPath("userData", dataPath);
+app.on("window-all-closed", () => {}); // The closed handler confirms model reclamation before quitting.
 
 void app.whenReady().then(startDesktop).catch((error: unknown) => {
   console.error(error);
@@ -46,6 +49,13 @@ async function startDesktop(): Promise<void> {
     // API setup is optional. The GUI reports missing settings.
   }
   const api = createApiBackend(process.env);
+  const localFixture = process.env.MCPAL_LOCAL_FIXTURE;
+  const publish = () => {
+    if (!window.isDestroyed()) window.webContents.send("desktop:state", session.snapshot());
+  };
+  const local = localFixture === "1" || localFixture === "over-budget"
+    ? openLocalFixture(publish, localFixture === "over-budget")
+    : createLocalBackend(process.env, publish);
   const fixture = process.env.MCPAL_TTS_FIXTURE === "1";
   const speech = new SpeechOutput({
     synthesize: fixture ? synthesizeSpeechFixture : synthesizeWindowsSpeech,
@@ -57,6 +67,7 @@ async function startDesktop(): Promise<void> {
     if (!window.isDestroyed()) window.webContents.send("desktop:state", state);
   }, undefined, {
     api,
+    local,
     onReply: (reply) => speech.reply(reply),
     onInputAccepted: () => {
       speech.cancel();
@@ -125,9 +136,11 @@ async function startDesktop(): Promise<void> {
   handle("desktop:simulation-reconnect", () => session.switchSession());
   handle("desktop:test-api", () => session.testApi());
   handle("desktop:select-backend", (backend) => {
-    if (backend !== "simulated" && backend !== "api") throw new TypeError("Invalid backend");
+    if (backend !== "simulated" && backend !== "api" && backend !== "local") throw new TypeError("Invalid backend");
     session.setBackend(backend);
   });
+  handle("desktop:start-local", () => session.startLocal());
+  handle("desktop:stop-local", () => session.stopLocal());
   handle("desktop:api-live", (enabled) => {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid observation source");
     session.setApiLive(enabled);
@@ -203,7 +216,8 @@ async function startDesktop(): Promise<void> {
     speech.dispose();
     session.dispose();
     live.disconnect();
-    app.quit();
+    if (local) void local.stop().finally(() => app.quit());
+    else app.quit();
   });
   await window.loadURL(page.href);
 }

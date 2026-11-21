@@ -62,6 +62,34 @@ function apiLabel(status) {
   return status.kind === "http" ? "供应方返回 HTTP " + status.status : apiLabels[status.kind];
 }
 
+const localPhases = {
+  off: "待启动", starting: "正在加载", warming: "正在预热", ready: "就绪",
+  reclaiming: "正在回收资源", failed: "本地后端失败", "over-budget": "显存超限，模型已卸载",
+};
+
+function renderLocal(state) {
+  const local = state.local;
+  $("model-backend").querySelector('[value="local"]').disabled = !local;
+  $("local-unconfigured").hidden = !!local;
+  $("local-panel").hidden = !local || state.backend !== "local";
+  if (!local) return;
+  const busy = ["starting", "warming", "ready"].includes(local.phase);
+  $("local-start").disabled = busy || local.phase === "reclaiming";
+  $("local-stop").disabled = !busy;
+  $("local-configuration").textContent = `${local.model} · ${local.settings}`;
+  $("local-status").textContent = local.reason ? `${localPhases[local.phase]} · ${local.reason}` : localPhases[local.phase];
+  const bytes = (value) => value == null ? "—" : `${value.toLocaleString()} B`;
+  $("local-dedicated").textContent = bytes(local.dedicatedPeakBytes);
+  $("local-shared").textContent = bytes(local.sharedPeakBytes);
+  const sampleResult = local.samplesBelowLimit === null ? "证据未齐" : local.samplesBelowLimit ? "已有样本低于上限" : "超限";
+  $("local-limit").textContent = `< 6,000,000,000 B · ${sampleResult}${local.fixture ? "（模拟）" : ""}`;
+  $("local-sampling").textContent = `${local.samples} 个样本 · 最大间隔 ${milliseconds(local.longestSampleGapMs)}`;
+  $("local-request").textContent = state.localRequest.kind === "cancelled"
+    ? "已尝试取消 · 模型资源仍由后端管理"
+    : apiLabel(state.localRequest);
+  $("local-cancelled").textContent = String(state.localCancelled);
+}
+
 function render(state) {
   renderConversation(state.messages);
   $("place").textContent = state.observation.place;
@@ -96,12 +124,13 @@ function render(state) {
   $("api-test-result").textContent = apiLabel(state.api.test);
   $("api-request").textContent = apiLabel(state.api.request);
   $("api-cancelled").textContent = String(state.api.cancelled);
-  $("api-live-option").hidden = state.backend !== "api";
+  $("api-live-option").hidden = state.backend === "simulated";
   $("api-live").checked = state.api.live;
   $("api-observation-source").textContent = state.api.live ? "Minecraft 实机" : "模拟观测";
   $("advance").disabled = state.api.live;
-  $("timeout").disabled = state.backend === "api";
-  $("simulation-scenario").disabled = state.backend === "api";
+  $("timeout").disabled = state.backend !== "simulated";
+  $("simulation-scenario").disabled = state.backend !== "simulated";
+  renderLocal(state);
 }
 
 function showError() {
@@ -135,6 +164,8 @@ $("simulation-scenario").addEventListener("change", (event) => bridge.setSimulat
 $("simulation-reconnect").addEventListener("click", () => bridge.reconnectSimulation().catch(showError));
 $("stop").addEventListener("click", () => bridge.stop().catch(showError));
 $("api-test").addEventListener("click", () => bridge.testApi().catch(showError));
+$("local-start").addEventListener("click", () => bridge.startLocal().catch(showError));
+$("local-stop").addEventListener("click", () => bridge.stopLocal().catch(showError));
 $("model-backend").addEventListener("change", (event) => bridge.selectBackend(event.target.value).catch(showError));
 $("api-live").addEventListener("change", (event) => bridge.setApiLive(event.target.checked).catch(showError));
 if (bridge) {
