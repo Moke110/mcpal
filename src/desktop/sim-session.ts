@@ -1,5 +1,9 @@
 import { monotonicClock, ReadWindowScheduler } from "./read-window.ts";
 import type { ReadRequest, ReadResult, WindowClock } from "./read-window.ts";
+import type { ApiBackend, ApiCheck, ApiResult } from "./api-backend.ts";
+import { authorizeModelOutput } from "./model-protocol.ts";
+import type { GameIntent, ModelObservation } from "./model-protocol.ts";
+import type { LiveMinecraftState } from "./live-session.ts";
 
 const observations = [
   { place: "草地 · 主世界", players: [{ name: "小明", distance: 5.4 }] },
@@ -15,16 +19,30 @@ type Message = {
   source: Source;
   text: string;
 };
-type Observation = (typeof observations)[number];
+type Observation = ModelObservation;
+type FrozenObservation = { value: Observation | null; live: boolean };
+type ApiStatus = { kind: "idle" | "pending" } | ApiCheck;
+type SessionOptions = {
+  api?: ApiBackend | null;
+  liveAction?: (intent: GameIntent) => void;
+};
 type Input = { text: string; source: Source; timeout: boolean };
-type Intent = { source: Source; text: string; follow?: string };
+type Intent = { source: Source; text: string; follow?: string; stop?: boolean; live?: boolean };
 export const scenarios = ["normal", "fast", "slow", "jitter", "duplicate"] as const;
 type Scenario = (typeof scenarios)[number];
 
 type SimulationView = {
   mode: "simulation";
   connection: "offline";
-  backend: "simulated";
+  backend: "simulated" | "api";
+  api: {
+    origin: string | null;
+    test: ApiStatus;
+    request: ApiStatus;
+    live: boolean;
+    cancelled: number;
+    liveTask: Pick<LiveMinecraftState["task"], "phase" | "target"> | null;
+  };
   observation: Observation;
   observationVersion: number;
   messages: Message[];
@@ -35,7 +53,7 @@ type SimulationView = {
   scenario: Scenario;
 };
 export type SimulationState = SimulationView & {
-  window: ReturnType<ReadWindowScheduler<Input, Observation, Intent>["snapshot"]>;
+  window: ReturnType<ReadWindowScheduler<Input, FrozenObservation, Intent>["snapshot"]>;
 };
 
 export class SimulationSession {
@@ -43,6 +61,7 @@ export class SimulationSession {
     mode: "simulation",
     connection: "offline",
     backend: "simulated",
+    api: { origin: null, test: { kind: "idle" }, request: { kind: "idle" }, live: false, cancelled: 0, liveTask: null },
     observation: observations[0]!,
     observationVersion: 1,
     messages: [],
@@ -58,30 +77,90 @@ export class SimulationSession {
   #replacement: string | null = null;
   readonly #publish: (state: SimulationState) => void;
   readonly #clock: WindowClock;
-  readonly #scheduler: ReadWindowScheduler<Input, Observation, Intent>;
+  readonly #scheduler: ReadWindowScheduler<Input, FrozenObservation, Intent>;
 
-  constructor(publish: (state: SimulationState) => void, clock = monotonicClock) {
+  readonly #options: SessionOptions;
+  #liveObservation: Observation | null = null;
+  #apiGeneration = 0;
+  #disposed = false;
+
+  constructor(publish: (state: SimulationState) => void, clock = monotonicClock, options: SessionOptions = {}) {
+    this.#options = options;
+    this.#state.api.origin = options.api?.origin ?? null;
     this.#publish = publish;
     this.#clock = clock;
     this.#scheduler = new ReadWindowScheduler({
       clock,
-      start: (request, result) => this.#simulate(request, result),
+      start: (request, result) => {
+        if (this.#state.backend === "api") void this.#generate(request, result);
+        else this.#simulate(request, result);
+      },
       commit: (intent) => this.#commitIntent(intent),
       changed: () => this.#updateWindow(),
+      abortSuperseded: () => this.#state.backend === "api",
     });
-    this.#scheduler.observe(this.#state.observation);
+    this.#observe();
   }
 
   snapshot(): SimulationState {
-    return { ...structuredClone(this.#state), window: this.#scheduler.snapshot() };
+    const state = structuredClone(this.#state);
+    if (state.api.live) state.observation = structuredClone(this.#liveObservation ?? { place: "实机观测未知", players: [] });
+    return { ...state, window: this.#scheduler.snapshot() };
   }
 
   advanceObservation(): void {
     this.#state.observationVersion++;
     const index = (this.#state.observationVersion - 1) % observations.length;
     this.#state.observation = observations[index]!;
-    this.#scheduler.observe(this.#state.observation);
+    this.#observe();
     this.#emit();
+  }
+
+  async testApi(): Promise<void> {
+    const backend = this.#options.api;
+    if (!backend || this.#state.api.test.kind === "pending") return;
+    this.#state.api.test = { kind: "pending" };
+    this.#emit();
+    this.#state.api.test = await backend.check();
+    if (!this.#disposed) this.#emit();
+  }
+
+  setBackend(backend: "simulated" | "api"): void {
+    if (backend === this.#state.backend || (backend === "api" && !this.#options.api)) return;
+    this.switchSession();
+    this.#apiGeneration++;
+    this.#state.backend = backend;
+    this.#state.api.request = { kind: "idle" };
+    if (backend === "simulated") this.#state.api.live = false;
+    this.#observe();
+    this.#emit();
+  }
+
+  setApiLive(live: boolean): void {
+    if (this.#state.backend !== "api" || live === this.#state.api.live) return;
+    this.switchSession();
+    this.#state.api.live = live;
+    this.#observe();
+    this.#emit();
+  }
+
+  updateLiveObservation(observation: Observation | null, task: LiveMinecraftState["task"]): void {
+    this.#state.api.liveTask = { phase: task.phase, target: task.target };
+    const available = this.#liveObservation !== null;
+    this.#liveObservation = observation;
+    if (this.#disposed || !this.#state.api.live) return;
+    if (available !== (observation !== null)) {
+      this.#apiGeneration++;
+      this.#scheduler.switchSession();
+      this.#state.api.request = { kind: "idle" };
+    }
+    this.#observe();
+    this.#emit();
+  }
+
+  #observe(): void {
+    const live = this.#state.api.live;
+    this.#scheduler.observe({ live, value: live ? this.#liveObservation : this.#state.observation });
   }
 
   setTimeoutNext(enabled: boolean): void {
@@ -117,11 +196,13 @@ export class SimulationSession {
 
   stop(): void {
     this.#interruptPlayback();
+    if (this.#state.api.live) this.#options.liveAction?.({ kind: "stop" });
     this.#beginCleanup(null);
     this.#scheduler.cancel();
   }
 
   dispose(): void {
+    this.#disposed = true;
     this.#scheduler.dispose();
     this.#playbackTimer?.();
     this.#cleanupTimer?.();
@@ -129,9 +210,41 @@ export class SimulationSession {
     this.#backendTimers.clear();
   }
 
-  #simulate(request: ReadRequest<Input, Observation>, result: ReadResult<Intent>): void {
+  async #generate(request: ReadRequest<Input, FrozenObservation>, result: ReadResult<Intent>): Promise<void> {
+    const backend = this.#options.api;
     const input = request.inputs.at(-1);
-    const observation = request.observation;
+    if (!backend || !input) {
+      result.reject();
+      return;
+    }
+    const generation = ++this.#apiGeneration;
+    this.#state.api.request = { kind: "pending" };
+    request.signal.addEventListener("abort", () => {
+      if (this.#disposed) return;
+      this.#state.api.cancelled++;
+      if (generation === this.#apiGeneration) this.#state.api.request = { kind: "cancelled" };
+      this.#emit();
+    }, { once: true });
+    const observation = request.observation?.value ?? null;
+    const response: ApiResult = await backend.generate({
+      inputs: request.inputs.map(({ text }) => text), observation,
+    }, request.signal, result.first);
+    if (this.#disposed || request.signal.aborted || generation !== this.#apiGeneration) return;
+    this.#state.api.request = response.kind === "http" ? response : { kind: response.kind };
+    if (response.kind !== "completed") {
+      result.reject();
+      return;
+    }
+    const { intent, reply } = authorizeModelOutput(response.output, input.text);
+    result.complete({
+      source: input.source, text: reply, live: request.observation?.live,
+      follow: intent.kind === "follow" ? intent.target : undefined, stop: intent.kind === "stop",
+    });
+  }
+
+  #simulate(request: ReadRequest<Input, FrozenObservation>, result: ReadResult<Intent>): void {
+    const input = request.inputs.at(-1);
+    const observation = request.observation?.value;
     if (!input || !observation) {
       result.reject();
       return;
@@ -168,7 +281,18 @@ export class SimulationSession {
     return { source: input.source, text: `我在${place}，附近有${nearby}。` };
   }
 
-  #commitIntent({ follow: target, text, source }: Intent): void {
+  #commitIntent({ follow: target, text, source, stop, live }: Intent): void {
+    if (live) {
+      if (stop) this.#options.liveAction?.({ kind: "stop" });
+      if (target && this.#liveObservation?.players.some(({ name }) => name === target)) {
+        this.#options.liveAction?.({ kind: "follow", target });
+      } else if (target) {
+        text = "当前游戏观测中已看不到该玩家。";
+      }
+      this.#reply(text, source);
+      return;
+    }
+    if (stop) this.#beginCleanup(null);
     if (target) {
       if (this.#state.task.phase === "cleaning" || (
         this.#state.task.phase === "following" && this.#state.task.target !== target

@@ -2,7 +2,9 @@ import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadEnvFile } from "node:process";
 import { connect } from "../client.ts";
+import { createApiBackend } from "./api-backend.ts";
 import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
 
@@ -34,7 +36,21 @@ async function startDesktop(): Promise<void> {
   const page = new URL("./index.html", import.meta.url);
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
-  const session = new SimulationSession((state) => window.webContents.send("desktop:state", state));
+  try {
+    loadEnvFile();
+  } catch {
+    // API setup is optional. The GUI reports missing settings.
+  }
+  const api = createApiBackend(process.env);
+  const session = new SimulationSession((state) => {
+    if (!window.isDestroyed()) window.webContents.send("desktop:state", state);
+  }, undefined, {
+    api,
+    liveAction: (intent) => {
+      if (intent.kind === "follow") live.replaceFollow(intent.target);
+      if (intent.kind === "stop") live.stop();
+    },
+  });
 
   function handle(
     channel: string,
@@ -68,7 +84,25 @@ async function startDesktop(): Promise<void> {
   });
   handle("desktop:simulation-reconnect", () => session.switchSession());
   handle("desktop:stop", () => session.stop());
+  handle("desktop:test-api", () => session.testApi());
+  handle("desktop:select-backend", (backend) => {
+    if (backend !== "simulated" && backend !== "api") throw new TypeError("Invalid backend");
+    session.setBackend(backend);
+  });
+  handle("desktop:api-live", (enabled) => {
+    if (typeof enabled !== "boolean") throw new TypeError("Invalid observation source");
+    session.setApiLive(enabled);
+  });
   const live = new LiveMinecraftSession((state) => {
+    const observation = state.observation;
+    session.updateLiveObservation(observation ? {
+      place: [observation.dimension ?? "维度未知",
+        [observation.position.x, observation.position.y, observation.position.z].map(Math.floor).join(", ")].join(" · "),
+      players: observation.nearby.players.flatMap(({ username, distance }) => username ? [{ name: username, distance }] : []),
+      health: observation.health,
+      food: observation.food,
+      inventory: observation.inventory?.map(({ name, count }) => ({ name, count })) ?? null,
+    } : null, state.task);
     if (!window.isDestroyed()) window.webContents.send("minecraft:state", state);
   }, (config, report, authPrompt) => connect(config, report, authPrompt, {
     profilesFolder: join(app.getPath("userData"), "minecraft-profiles"),

@@ -50,6 +50,16 @@ function renderConversation(messages) {
   conversation.scrollTop = conversation.scrollHeight;
 }
 
+const apiLabels = {
+  idle: "未开始", pending: "处理中", completed: "完成",
+  network: "连接失败或测试超时", cancelled: "已尝试取消 · 服务端是否停止未知",
+  invalid: "响应校验失败", truncated: "响应截断或未完整结束", "missing-model": "供应方未列出配置的模型",
+};
+
+function apiLabel(status) {
+  return status.kind === "http" ? "供应方返回 HTTP " + status.status : apiLabels[status.kind];
+}
+
 function render(state) {
   renderConversation(state.messages);
   $("place").textContent = state.observation.place;
@@ -61,8 +71,10 @@ function render(state) {
     return player;
   }));
   $("reply").textContent = replyLabels[state.reply];
-  const { phase, target } = state.task;
-  $("task").textContent = target ? `${taskLabels[phase]} · ${target}` : taskLabels[phase];
+  const liveTask = state.api.live ? state.api.liveTask : null;
+  const { phase, target } = liveTask ?? state.task;
+  const phaseLabel = ({ ...taskLabels, pending: "等待动作接收", stopping: "正在清理", released: "控制已释放" })[phase];
+  $("task").textContent = target ? `${phaseLabel} · ${target}` : phaseLabel;
   $("playback").textContent = playbackLabels[state.playback.phase];
   $("timeout").checked = state.timeoutNext;
   const read = state.window;
@@ -73,6 +85,21 @@ function render(state) {
   $("window-counts").textContent = `${read.samples} 次 · 成功 ${read.successful} · 超时 ${read.timeout} · 取消 ${read.cancelled} · 校验失败 ${read.rejected} · 丢弃 ${read.discarded}`;
   $("window-percentiles").textContent = `${milliseconds(read.p50Ms)} / ${milliseconds(read.p95Ms)}`;
   $("simulation-scenario").value = state.scenario;
+  $("model-backend").value = state.backend;
+  $("model-backend").querySelector('[value="api"]').disabled = !state.api.origin;
+  $("api-origin").textContent = state.api.origin
+    ? "连接目标 " + state.api.origin + "。启用 API 后会将输入和观测发送到该地址。"
+    : "请在本机配置 API 地址、模型和密钥。";
+  $("api-test").disabled = !state.api.origin || state.api.test.kind === "pending";
+  $("api-test-result").textContent = apiLabel(state.api.test);
+  $("api-request").textContent = apiLabel(state.api.request);
+  $("api-cancelled").textContent = String(state.api.cancelled);
+  $("api-live-option").hidden = state.backend !== "api";
+  $("api-live").checked = state.api.live;
+  $("api-observation-source").textContent = state.api.live ? "Minecraft 实机" : "模拟观测";
+  $("advance").disabled = state.api.live;
+  $("timeout").disabled = state.backend === "api";
+  $("simulation-scenario").disabled = state.backend === "api";
 }
 
 function showError() {
@@ -105,6 +132,9 @@ $("timeout").addEventListener("change", (event) => bridge.setTimeoutNext(event.t
 $("simulation-scenario").addEventListener("change", (event) => bridge.setSimulationScenario(event.target.value).catch(showError));
 $("simulation-reconnect").addEventListener("click", () => bridge.reconnectSimulation().catch(showError));
 $("stop").addEventListener("click", () => bridge.stop().catch(showError));
+$("api-test").addEventListener("click", () => bridge.testApi().catch(showError));
+$("model-backend").addEventListener("change", (event) => bridge.selectBackend(event.target.value).catch(showError));
+$("api-live").addEventListener("change", (event) => bridge.setApiLive(event.target.checked).catch(showError));
 if (bridge) {
   bridge.onState(render);
   bridge.snapshot().then(render).catch(showError);

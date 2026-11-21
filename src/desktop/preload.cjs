@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld("companion", {
   setSimulationScenario: (id) => ipcRenderer.invoke("desktop:simulation-scenario", id),
   reconnectSimulation: () => ipcRenderer.invoke("desktop:simulation-reconnect"),
   stop: () => ipcRenderer.invoke("desktop:stop"),
+  testApi: () => ipcRenderer.invoke("desktop:test-api"),
+  selectBackend: (backend) => ipcRenderer.invoke("desktop:select-backend", backend),
+  setApiLive: (enabled) => ipcRenderer.invoke("desktop:api-live", enabled),
   onState: (listener) => {
     ipcRenderer.on("desktop:state", (_event, state) => listener(state));
   },
