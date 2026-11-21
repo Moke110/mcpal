@@ -1,7 +1,36 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SimulationSession } from "../src/desktop/sim-session.ts";
+import type { ModelInput } from "../src/desktop/model-protocol.ts";
 import { fakeClock } from "./fake-clock.ts";
+
+test("Minecraft input and live observations reach the API only with explicit live permission", async () => {
+  const observation = { place: "overworld", health: 13, players: [] };
+  for (const useLiveApi of [false, true]) {
+    const { clock, advance } = fakeClock();
+    const requests: ModelInput[] = [];
+    const session = new SimulationSession(() => {}, clock, {
+      api: {
+        origin: "http://127.0.0.1",
+        check: async () => ({ kind: "completed" }),
+        generate: async (input) => {
+          requests.push(input);
+          return { kind: "completed", output: { reply: "API 回复", intent: { kind: "none" } } };
+        },
+      },
+    });
+    session.setBackend("api");
+    session.setApiLive(useLiveApi);
+    session.updateLiveObservation(observation, { phase: "idle", target: null, result: null });
+    session.submitMinecraft({ player: "Owner", text: "生命值", replyRoute: null });
+    advance(400);
+    await Promise.resolve();
+    advance(850);
+    assert.deepEqual(requests, useLiveApi ? [{ inputs: ["生命值"], observation }] : []);
+    assert.equal(session.snapshot().messages.at(-1)?.text, useLiveApi ? "API 回复" : "当前生命值为 13。");
+    session.dispose();
+  }
+});
 
 test("trusted Minecraft input shares conversation scheduling with game observation and follows the originating reply route", () => {
   const { clock, advance } = fakeClock();

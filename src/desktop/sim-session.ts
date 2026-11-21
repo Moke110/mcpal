@@ -99,7 +99,8 @@ export class SimulationSession {
     this.#scheduler = new ReadWindowScheduler({
       clock,
       start: (request, result) => {
-        if (this.#state.backend === "api") void this.#generate(request, result);
+        const live = request.inputs.at(-1)?.live;
+        if (this.#state.backend === "api" && (!live || this.#state.api.live)) void this.#generate(request, result);
         else this.#simulate(request, result);
       },
       commit: (intent) => this.#commitIntent(intent),
