@@ -4,6 +4,7 @@ import type { Config } from './config.ts'
 import { createControls, type TrustedMinecraftChat } from './controls.ts'
 import type { MinecraftIO } from './io.ts'
 import { readBlock, readObservation } from './perception.ts'
+import { readWorldView } from './world-view.ts'
 
 type Report = (event: string, fields?: Record<string, unknown>) => void
 
@@ -29,6 +30,20 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
   let stopReason: string | undefined
   let controls: ReturnType<typeof createControls> | undefined
   const transport = bot._client
+  // Mineflayer can retain columns when the level name changes within a dimension type.
+  const viewColumns = new Set<string>()
+  const columnKey = (x: number, z: number) => `${Math.floor(x / 16)},${Math.floor(z / 16)}`
+  let level: string | undefined
+  function trackLevel(packet: { worldState?: { name: string; dimension: number } }) {
+    const next = packet.worldState
+    const key = next && `${next.dimension}:${next.name}`
+    if (key !== level) viewColumns.clear()
+    level = key
+  }
+  transport.on('login', trackLevel)
+  transport.on('respawn', trackLevel)
+  bot.on('chunkColumnLoad', ({ x, z }) => { viewColumns.add(columnKey(x, z)) })
+  bot.on('chunkColumnUnload', ({ x, z }) => { viewColumns.delete(columnKey(x, z)) })
   transport.addListener('connect', () => {
     if (stopping) transport.socket.destroy()
   })
@@ -150,5 +165,6 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
     stop: () => controls?.cancel(),
   }
   const chat = { send: (text: string) => controls?.reply(text) ?? false }
-  return { closed, close, getStatus, io, chat, fixture: controls?.fixture, command: controls?.terminal }
+  const readView = () => ready() ? readWorldView(bot, (x, z) => viewColumns.has(columnKey(x, z))) : null
+  return { closed, close, getStatus, readView, io, chat, fixture: controls?.fixture, command: controls?.terminal }
 }
