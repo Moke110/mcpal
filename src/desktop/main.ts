@@ -7,6 +7,8 @@ import { connect } from "../client.ts";
 import { createApiBackend } from "./api-backend.ts";
 import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
+import { SpeechOutput } from "./speech-output.ts";
+import { synthesizeSpeechFixture, synthesizeWindowsSpeech } from "./windows-speech.ts";
 
 const dataPath = process.env.MCPAL_DESKTOP_DATA;
 if (dataPath) app.setPath("userData", dataPath);
@@ -42,10 +44,19 @@ async function startDesktop(): Promise<void> {
     // API setup is optional. The GUI reports missing settings.
   }
   const api = createApiBackend(process.env);
+  const fixture = process.env.MCPAL_TTS_FIXTURE === "1";
+  const speech = new SpeechOutput({
+    synthesize: fixture ? synthesizeSpeechFixture : synthesizeWindowsSpeech,
+    publish: (event) => {
+      if (!window.isDestroyed()) window.webContents.send("desktop:speech-event", event);
+    },
+  });
   const session = new SimulationSession((state) => {
     if (!window.isDestroyed()) window.webContents.send("desktop:state", state);
   }, undefined, {
     api,
+    onReply: (reply) => speech.reply(reply),
+    onSessionChange: () => speech.cancel(),
     invalidateLiveReplacement: () => live.invalidateReplacement(),
     liveAction: (intent) => {
       if (intent.kind === "follow") live.replaceFollow(intent.target);
@@ -71,6 +82,7 @@ async function startDesktop(): Promise<void> {
     if (typeof input !== "string" || (source !== "gui" && source !== "voice")) {
       throw new TypeError("Invalid desktop input");
     }
+    if (input.trim().length > 0 && input.trim().length <= 500) speech.cancel();
     session.submitText(input, source);
   });
   handle("desktop:observe", () => session.advanceObservation());
@@ -84,7 +96,6 @@ async function startDesktop(): Promise<void> {
     session.setScenario(scenario);
   });
   handle("desktop:simulation-reconnect", () => session.switchSession());
-  handle("desktop:stop", () => session.stop());
   handle("desktop:test-api", () => session.testApi());
   handle("desktop:select-backend", (backend) => {
     if (backend !== "simulated" && backend !== "api") throw new TypeError("Invalid backend");
@@ -93,6 +104,21 @@ async function startDesktop(): Promise<void> {
   handle("desktop:api-live", (enabled) => {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid observation source");
     session.setApiLive(enabled);
+  });
+  handle("desktop:stop", () => {
+    speech.cancel();
+    session.stop();
+  });
+  handle("desktop:speech-fixture", () => fixture);
+  handle("desktop:speech-enable", (enabled) => {
+    if (typeof enabled !== "boolean") throw new TypeError("Invalid speech route");
+    speech.setEnabled(enabled);
+  });
+  handle("desktop:speech-preview", () => speech.preview());
+  handle("desktop:speech-cancel", () => speech.cancel());
+  handle("desktop:speech-settled", (id) => {
+    if (typeof id !== "number" || !Number.isSafeInteger(id)) throw new TypeError("Invalid speech ID");
+    speech.settled(id);
   });
   const live = new LiveMinecraftSession((state) => {
     const observation = state.observation;
@@ -114,6 +140,7 @@ async function startDesktop(): Promise<void> {
   handle("minecraft:follow", (target) => live.follow(target));
   handle("minecraft:stop", () => live.stop());
   window.on("closed", () => {
+    speech.dispose();
     session.dispose();
     live.disconnect();
     app.quit();

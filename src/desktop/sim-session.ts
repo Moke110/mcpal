@@ -26,6 +26,8 @@ type SessionOptions = {
   api?: ApiBackend | null;
   liveAction?: (intent: GameIntent) => void;
   invalidateLiveReplacement?: () => void;
+  onReply?: (text: string) => void;
+  onSessionChange?: () => void;
 };
 type Input = { text: string; source: Source; timeout: boolean };
 type Intent = { source: Source; text: string; follow?: string; stop?: boolean; live?: boolean };
@@ -152,6 +154,7 @@ export class SimulationSession {
     if (this.#disposed || !this.#state.api.live) return;
     if (available !== (observation !== null)) {
       this.#options.invalidateLiveReplacement?.();
+      this.#options.onSessionChange?.();
       this.#apiGeneration++;
       this.#scheduler.switchSession();
       this.#state.api.request = { kind: "idle" };
@@ -177,6 +180,7 @@ export class SimulationSession {
 
   switchSession(): void {
     this.#options.invalidateLiveReplacement?.();
+    this.#options.onSessionChange?.();
     this.#interruptPlayback();
     this.#beginCleanup(null);
     this.#scheduler.switchSession();
@@ -339,6 +343,7 @@ export class SimulationSession {
 
   #reply(text: string, source: Source): void {
     this.#addMessage({ role: "companion", source, text });
+    this.#options.onReply?.(text);
     this.#state.reply = "ready";
     this.#state.playback = { phase: "playing" };
     this.#playbackTimer = this.#clock.after(2600, () => {

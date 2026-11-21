@@ -44,6 +44,8 @@ GUI 接受 Minecraft Java 服务器或 LAN 的地址、端口、认证方式和�
 
 GUI 分别呈现播报是否已经停止和游戏任务是否已经终止。现有 `MinecraftIO.stop()` 提交取消请求。游戏任务终止需要结合任务完成与清理结果确认，超时无法清理时按现有恢复路径关闭游戏会话。自动化验证使用单调假时钟、可控的模拟后端、`MinecraftIO` 假实现和模拟音频输出，在 GUI 检查窗口超时、失效结果、播报中断和任务清理对应的状态。
 
+Windows 桌面版通过系统已安装的 `zh-CN` 桌面语音在 CPU 上生成 WAV。请先安装 Windows 普通话语音包，在「本机播报」选择输出设备并试听，再按需启用已校验回复的播报。界面分别记录合成耗时和 Web Audio 设备时钟上的首音帧、最近输出末帧。停播清空播放器的 PCM，并等待已渲染的最后一帧越过设备时钟；实际扬声器出声由实机确认。`MCPAL_TTS_FIXTURE=1` 以静音目的地和固定 PCM 验证应用播放器，不会唤起系统语音合成。
+
 ## 依赖
 
 - Node.js 24 LTS 自带 `.env` 加载、TypeScript 类型擦除和 `node:test`。TypeScript 6 检查类型，锁文件固定实际安装版本。[Node.js 发布周期](https://nodejs.org/en/about/previous-releases) · [Node.js 测试运行器](https://nodejs.org/docs/latest-v24.x/api/test.html) · [TypeScript 6.0](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-6-0.html)
