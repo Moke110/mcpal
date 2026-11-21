@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
 import { fileURLToPath } from "node:url";
-import { SimulationSession } from "./sim-session.ts";
+import { scenarios, SimulationSession } from "./sim-session.ts";
 
 const dataPath = process.env.MCPAL_DESKTOP_DATA;
 if (dataPath) app.setPath("userData", dataPath);
@@ -58,6 +58,12 @@ async function startDesktop(): Promise<void> {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid timeout setting");
     session.setTimeoutNext(enabled);
   });
+  handle("desktop:simulation-scenario", (id) => {
+    const scenario = scenarios.find((value) => value === id);
+    if (!scenario) throw new TypeError("Invalid simulation scenario");
+    session.setScenario(scenario);
+  });
+  handle("desktop:simulation-reconnect", () => session.switchSession());
   handle("desktop:stop", () => session.stop());
   window.on("closed", () => {
     session.dispose();
