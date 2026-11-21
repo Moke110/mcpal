@@ -59,9 +59,11 @@ export class SimulationSession {
   readonly #publish: (state: SimulationState) => void;
   readonly #clock: WindowClock;
   readonly #scheduler: ReadWindowScheduler<Input, Observation, Intent>;
+  readonly #onReply: (text: string) => void;
 
-  constructor(publish: (state: SimulationState) => void, clock = monotonicClock) {
+  constructor(publish: (state: SimulationState) => void, clock = monotonicClock, onReply: (text: string) => void = () => {}) {
     this.#publish = publish;
+    this.#onReply = onReply;
     this.#clock = clock;
     this.#scheduler = new ReadWindowScheduler({
       clock,
@@ -211,6 +213,7 @@ export class SimulationSession {
 
   #reply(text: string, source: Source): void {
     this.#addMessage({ role: "companion", source, text });
+    this.#onReply(text);
     this.#state.reply = "ready";
     this.#state.playback = { phase: "playing" };
     this.#playbackTimer = this.#clock.after(2600, () => {
