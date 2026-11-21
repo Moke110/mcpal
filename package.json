@@ -8,10 +8,11 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env src/main.ts",
+    "desktop": "electron src/desktop/main.ts",
     "controller": "node --env-file-if-exists=.env src/controller-cli.ts",
     "dev": "node --watch --env-file-if-exists=.env src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test"
+    "test": "node --test \"test/**/*.test.ts\""
   },
   "dependencies": {
     "mineflayer": "4.39.0",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "electron": "45.4.1",
     "minecraft-data": "3.119.0",
     "minecraft-protocol": "1.68.0",
     "prismarine-chunk": "1.41.0",

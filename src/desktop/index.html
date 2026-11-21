@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MC-Pal</title>
+    <link rel="stylesheet" href="./style.css">
+    <script defer src="./renderer.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">M</span>
+        <h1>MC-Pal</h1>
+      </div>
+      <span class="mode">模拟模式 · 实机未连接</span>
+    </header>
+    <main class="workspace">
+      <section class="panel conversation" aria-labelledby="conversation-title">
+        <div class="panel-title">
+          <h2 id="conversation-title">对话</h2>
+          <button id="stop" class="danger" type="button">停止任务</button>
+        </div>
+        <div id="conversation" role="log" aria-label="对话记录" tabindex="0">
+          <p class="empty">询问附近的玩家，或发送「跟随小明」开始。</p>
+        </div>
+        <form id="composer">
+          <label for="input">输入消息</label>
+          <div class="composer-row">
+            <input id="input" name="text" maxlength="500" required placeholder="附近有谁？" autocomplete="off">
+            <button class="primary" type="submit">发送</button>
+            <button id="voice" type="button">注入语音文本</button>
+          </div>
+        </form>
+        <p id="error" role="alert" hidden></p>
+      </section>
+
+      <aside aria-label="模拟状态">
+        <section class="panel" aria-labelledby="observation-title">
+          <div class="panel-title">
+            <h2 id="observation-title">游戏观测</h2>
+            <button id="advance" type="button">切换观测</button>
+          </div>
+          <p id="place" class="place"></p>
+          <ul id="players" aria-label="附近的玩家"></ul>
+        </section>
+        <section class="panel" aria-labelledby="status-title">
+          <h2 id="status-title">会话状态</h2>
+          <dl aria-live="polite">
+            <div><dt>回复</dt><dd id="reply"></dd></div>
+            <div><dt>游戏任务</dt><dd id="task"></dd></div>
+            <div><dt>模拟播报</dt><dd id="playback"></dd></div>
+          </dl>
+        </section>
+        <section class="panel" aria-labelledby="settings-title">
+          <h2 id="settings-title">连接与后端</h2>
+          <dl>
+            <div><dt>Minecraft</dt><dd>未连接</dd></div>
+            <div><dt>模型后端</dt><dd>模拟后端</dd></div>
+          </dl>
+          <label class="control"><input id="timeout" type="checkbox"> 让下一条回复超时</label>
+        </section>
+      </aside>
+    </main>
+  </body>
+</html>
