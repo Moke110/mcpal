@@ -51,3 +51,41 @@ test("播放线程清空 PCM 后只报告已输出的末帧，后续量子没有
   assert.deepEqual([...next], [0, 0]);
   assert.deepEqual(messages.map((value) => JSON.parse(value)), [{ firstFrame: 129 }, { lastFrame: 129, cancelled: true }]);
 });
+
+test("停播撤回仍在初始化音频设备的试听，并允许再次试听", async () => {
+  const clicks = new Map<string, () => void>();
+  const element = (id: string) => ({
+    addEventListener: (_name: string, handle: () => void) => clicks.set(id, handle),
+    replaceChildren() {},
+  });
+  const resume = Promise.withResolvers<void>();
+  let previews = 0;
+  let stops = 0;
+  const bridge = {
+    speechFixture: async () => true,
+    onSpeech() {},
+    previewSpeech: async () => { previews++; },
+    cancelSpeech: async () => { stops++; },
+  };
+  runInNewContext(readFileSync(new URL("../src/desktop/speech-renderer.js", import.meta.url), "utf8"), {
+    document: { getElementById: element },
+    window: { companion: bridge },
+    navigator: { mediaDevices: { addEventListener() {}, enumerateDevices: async () => [] } },
+    Option: class {},
+    AudioContext: class {
+      audioWorklet = { addModule: async () => {} };
+      resume() { return resume.promise; }
+    },
+  });
+
+  clicks.get("speech-preview")!();
+  clicks.get("speech-stop")!();
+  resume.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(stops, 1);
+  assert.equal(previews, 0);
+
+  clicks.get("speech-preview")!();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(previews, 1);
+});

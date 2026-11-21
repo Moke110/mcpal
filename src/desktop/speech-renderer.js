@@ -9,6 +9,7 @@ let selected = "";
 let fixture = false;
 let active = null;
 let graph;
+let pendingPreview;
 
 function showError(message) {
   status.textContent = message;
@@ -93,6 +94,8 @@ function cancelJob(job) {
 
 async function stopSpeech() {
   const job = jobs.get(active);
+  if (pendingPreview && !job) status.textContent = "已停播";
+  pendingPreview = undefined;
   cancelJob(job);
   await Promise.all([job?.stopped, bridge.cancelSpeech()]);
 }
@@ -186,7 +189,15 @@ function receive(event) {
 find("speech-devices").addEventListener("click", () => void refreshDevices());
 find("speech-stop").addEventListener("click", () => void stopSpeech().catch(() => showError("无法截停播报")));
 find("speech-preview").addEventListener("click", () => {
-  void preparePlayer().then(() => bridge.previewSpeech()).catch((error) => showError(`音频设备错误 · ${error.message}`));
+  const preview = Symbol();
+  pendingPreview = preview;
+  void preparePlayer().then(() => {
+    if (pendingPreview === preview) return bridge.previewSpeech();
+  }).catch((error) => {
+    if (pendingPreview === preview) showError(`音频设备错误 · ${error.message}`);
+  }).finally(() => {
+    if (pendingPreview === preview) pendingPreview = undefined;
+  });
 });
 device.addEventListener("change", () => {
   selected = device.value;
@@ -198,7 +209,7 @@ device.addEventListener("change", () => {
 });
 route.addEventListener("change", () => {
   if (!route.checked) {
-    void bridge.enableSpeech(false).then(stopSpeech).catch(() => showError("无法关闭播报"));
+    void Promise.all([bridge.enableSpeech(false), stopSpeech()]).catch(() => showError("无法关闭播报"));
     return;
   }
   void preparePlayer().then(() => bridge.enableSpeech(route.checked)).catch((error) => {
