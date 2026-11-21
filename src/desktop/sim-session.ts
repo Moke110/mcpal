@@ -25,6 +25,7 @@ type ApiStatus = { kind: "idle" | "pending" } | ApiCheck;
 type SessionOptions = {
   api?: ApiBackend | null;
   liveAction?: (intent: GameIntent) => void;
+  invalidateLiveReplacement?: () => void;
 };
 type Input = { text: string; source: Source; timeout: boolean };
 type Intent = { source: Source; text: string; follow?: string; stop?: boolean; live?: boolean };
@@ -150,6 +151,7 @@ export class SimulationSession {
     this.#liveObservation = observation;
     if (this.#disposed || !this.#state.api.live) return;
     if (available !== (observation !== null)) {
+      this.#options.invalidateLiveReplacement?.();
       this.#apiGeneration++;
       this.#scheduler.switchSession();
       this.#state.api.request = { kind: "idle" };
@@ -174,6 +176,7 @@ export class SimulationSession {
   }
 
   switchSession(): void {
+    this.#options.invalidateLiveReplacement?.();
     this.#interruptPlayback();
     this.#beginCleanup(null);
     this.#scheduler.switchSession();
@@ -182,6 +185,7 @@ export class SimulationSession {
   submitText(text: string, source: Source): void {
     const input = text.trim();
     if (!input || input.length > 500) return;
+    this.#options.invalidateLiveReplacement?.();
     this.#interruptPlayback();
     this.#replacement = null;
     this.#addMessage({ role: "operator", source, text: input });

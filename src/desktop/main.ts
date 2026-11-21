@@ -46,6 +46,7 @@ async function startDesktop(): Promise<void> {
     if (!window.isDestroyed()) window.webContents.send("desktop:state", state);
   }, undefined, {
     api,
+    invalidateLiveReplacement: () => live.invalidateReplacement(),
     liveAction: (intent) => {
       if (intent.kind === "follow") live.replaceFollow(intent.target);
       if (intent.kind === "stop") live.stop();

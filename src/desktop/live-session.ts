@@ -136,8 +136,12 @@ export class LiveMinecraftSession {
     this.#replacement = target;
   }
 
-  stop(): void {
+  invalidateReplacement(): void {
     this.#replacement = null;
+  }
+
+  stop(): void {
+    this.invalidateReplacement();
     if (this.#state.task.phase !== "following" && this.#state.task.phase !== "pending") return;
     this.#state.task.phase = "stopping";
     this.#connection?.io.stop();
@@ -149,7 +153,7 @@ export class LiveMinecraftSession {
     switch (event) {
       case "login":
       case "world_unavailable":
-        this.#replacement = null;
+        this.invalidateReplacement();
         this.#state.phase = "positioning";
         this.#state.observation = null;
         this.#state.authPrompt = null;

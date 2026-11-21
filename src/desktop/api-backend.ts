@@ -52,7 +52,11 @@ export function createApiBackend(env: NodeJS.ProcessEnv): ApiBackend | null {
           headers: { ...headers, "content-type": "application/json", accept: "text/event-stream" },
           body: JSON.stringify({
             model, stream: true,
-            messages: [{ role: "system", content: modelInstructions }, { role: "user", content: JSON.stringify(input) }],
+            messages: [
+              { role: "system", content: modelInstructions },
+              { role: "user", content: JSON.stringify(input, (_field, value: unknown) =>
+                typeof value === "string" ? value.replaceAll(key, "[redacted]") : value) },
+            ],
           }),
         });
         if (!response.ok || !response.body || !response.headers.get("content-type")?.startsWith("text/event-stream")) {
@@ -89,8 +93,10 @@ async function readCompletion(
       if (data === "[DONE]") {
         if (!finished) return { kind: "truncated" };
         signal.throwIfAborted();
-        const output = content.includes(key) ? null : parseModelOutput(content, input.observation);
-        return output ? { kind: "completed", output } : { kind: "invalid" };
+        const output = parseModelOutput(content, input.observation);
+        if (!output || output.reply.includes(key) ||
+          (output.intent.kind === "follow" && output.intent.target.includes(key))) return { kind: "invalid" };
+        return { kind: "completed", output };
       }
       let event: { error?: unknown; choices?: { index: number; delta?: { content?: string; tool_calls?: unknown; refusal?: string }; finish_reason?: string | null }[] };
       try {

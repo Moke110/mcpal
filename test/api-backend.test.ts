@@ -5,9 +5,13 @@ import { test } from "node:test";
 import { createApiBackend } from "../src/desktop/api-backend.ts";
 import type { ApiResult } from "../src/desktop/api-backend.ts";
 import { SimulationSession } from "../src/desktop/sim-session.ts";
+import { LiveMinecraftSession } from "../src/desktop/live-session.ts";
+import type { connect } from "../src/client.ts";
+import type { Observation } from "../src/perception.ts";
+import type { TaskResult } from "../src/tasks.ts";
 import { fakeClock } from "./fake-clock.ts";
 
-async function fixture(t: { after: (cleanup: () => void) => void }, mode: "valid" | "truncated" | "http" | "slow" | "invalid") {
+async function fixture(t: { after: (cleanup: () => void) => void }, mode: "valid" | "truncated" | "http" | "slow" | "invalid" | "secret-reply" | "secret-target") {
   const server = createServer(async (request, response) => {
     assert.equal(request.headers.authorization, "Bearer local-fixture-key");
     if (request.url === "/v1/models") {
@@ -24,7 +28,10 @@ async function fixture(t: { after: (cleanup: () => void) => void }, mode: "valid
       return;
     }
     response.writeHead(200, { "content-type": "text/event-stream" });
-    const output = JSON.stringify({ reply: "正在跟随小明。", intent: { kind: "follow", target: mode === "invalid" ? "陌生人" : "小明" } });
+    const reply = mode === "secret-reply" ? "echo local-fixture-key" : "正在跟随小明。";
+    const target = mode === "invalid" ? "陌生人" : mode === "secret-target" ? "local-fixture-key" : "小明";
+    const output = JSON.stringify({ reply, intent: { kind: "follow", target } })
+      .replace("local-fixture-key", "\\u006cocal-fixture-key");
     const frame = (delta: object, reason: string | null = null) =>
       "data: " + JSON.stringify({ choices: [{ index: 0, delta, finish_reason: reason }] }) + "\r\n\r\n";
     const bytes = Buffer.from(frame({ content: output }));
@@ -151,4 +158,85 @@ test("live mode commits only an explicit target that remains observable, even if
   advance(2400);
   assert.deepEqual(actions, ["Host"]);
   session.dispose();
+});
+test("credentials escaped in either decoded output field are rejected", async (t) => {
+  for (const mode of ["secret-reply", "secret-target"] as const) {
+    const backend = await fixture(t, mode);
+    assert(backend);
+    const observation = mode === "secret-target"
+      ? { ...input.observation, players: [...input.observation.players, { name: "local-fixture-key", distance: 5 }] }
+      : input.observation;
+    assert.deepEqual(await backend.generate({ ...input, observation }, new AbortController().signal, () => {}), {
+      kind: "invalid",
+    });
+  }
+});
+
+test("new input or a session change discards a live replacement without stopping the cleanup", async () => {
+  for (const change of ["status", "backend", "source", "session"] as const) {
+    const { clock, advance } = fakeClock();
+    const attempts: string[] = [];
+    const released = Promise.withResolvers<TaskResult>();
+    let stops = 0;
+    let report: Parameters<typeof connect>[1] = () => {};
+    const pos = { x: 0, y: 64, z: 0 };
+    const players = [{ name: "Host", distance: 2 }, { name: "Other", distance: 4 }];
+    const observation: Observation = {
+      schemaVersion: 1, username: "Companion", connection: "spawned", version: "26.1",
+      dimension: "overworld", position: pos, orientation: { yawRadians: 0, pitchRadians: 0 },
+      health: 20, food: 20, currentTask: null, inventory: null, blocks: [],
+      nearby: { radius: 32, entities: [], players: players.map(({ name, distance }, id) => ({
+        id, distance, type: "player", name: null, username: name, position: pos,
+      })) },
+    };
+    const live = new LiveMinecraftSession(() => {}, (_config, listener) => {
+      report = listener;
+      return {
+        closed: new Promise(() => {}), close: () => {},
+        io: {
+          read: () => observation, readBlock: () => null,
+          execute: (action) => {
+            if (action.kind === "follow") attempts.push(action.player);
+            return released.promise;
+          },
+          stop: () => { stops++; },
+        },
+      };
+    });
+    const session = new SimulationSession(() => {}, clock, {
+      api: {
+        origin: "http://127.0.0.1",
+        check: async () => ({ kind: "completed" }),
+        generate: async () => ({ kind: "completed", output: { reply: "跟随 Other", intent: { kind: "follow", target: "Other" } } }),
+      },
+      liveAction: (intent) => {
+        if (intent.kind === "follow") live.replaceFollow(intent.target);
+        if (intent.kind === "stop") live.stop();
+      },
+      invalidateLiveReplacement: () => live.invalidateReplacement(),
+    });
+    live.open({ host: "127.0.0.1", port: "25565", auth: "offline", username: "Companion", offlineControl: true });
+    report("snapshot", { observation });
+    session.setBackend("api");
+    session.setApiLive(true);
+    session.updateLiveObservation({ place: "主世界", players }, live.snapshot().task);
+    live.follow("Host");
+    session.submitText("改跟 Other", "gui");
+    advance(400);
+    await Promise.resolve();
+    advance(800);
+    assert.equal(stops, 1);
+    assert.equal(live.snapshot().task.phase, "stopping");
+    if (change === "status") session.submitText("附近有谁？", "gui");
+    if (change === "backend") session.setBackend("simulated");
+    if (change === "source") session.setApiLive(false);
+    if (change === "session") session.switchSession();
+    assert.equal(stops, 1);
+    released.resolve({ state: "cancelled", message: "stopped" });
+    await released.promise;
+    await Promise.resolve();
+    assert.deepEqual(attempts, ["Host"], change);
+    assert.equal(live.snapshot().task.phase, "released");
+    session.dispose();
+  }
 });
