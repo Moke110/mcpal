@@ -125,6 +125,18 @@
           <label class="control"><input id="timeout" type="checkbox"> 让下一条回复超时</label>
           <button id="simulation-reconnect" type="button">模拟重连</button>
         </section>
+        <details class="panel" id="acceptance">
+          <summary>联合验收</summary>
+          <p>首次启动可直接体验模拟。实机、模型和音频设备需由操作者设置和启用。</p>
+          <button id="open-settings-folder" type="button">打开本机设置目录</button>
+          <p>将便携包内的 settings.example.env 另存为 .env，填写所需设置后重启。</p>
+          <ul>
+            <li>分别从 GUI、受信 Minecraft 聊天和本机语音发起请求。检查 GUI、公开发言和本机播报。</li>
+            <li>分别用 API 和本地后端询问状态、跟随、改口和停止。核对实机观测、动作和控制释放。</li>
+            <li>记录读取窗口、超时和取消。显存低于 6,000,000,000 字节及实际音频与任务 P95 待现场测量。</li>
+          </ul>
+          <p>便携包内的「快速开始.md」包含现场验收步骤和记录口径。</p>
+        </details>
         <section class="panel" aria-labelledby="asr-title">
           <h2 id="asr-title">本机语音输入</h2>
           <label class="control"><input id="asr-enable" type="checkbox" disabled> 启用麦克风</label>

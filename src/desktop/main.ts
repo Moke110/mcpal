@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, Menu } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadEnvFile } from "node:process";
@@ -10,7 +11,6 @@ import { openLocalFixture } from "./local-fixture.ts";
 import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
 import { SpeechOutput } from "./speech-output.ts";
-import { isStopRequest } from "./stop-request.js";
 import { VoiceInput } from "./voice-input.ts";
 import { openAsrFixture, openVosk } from "./vosk-asr.ts";
 import { synthesizeSpeechFixture, synthesizeWindowsSpeech } from "./windows-speech.ts";
@@ -45,7 +45,8 @@ async function startDesktop(): Promise<void> {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
   try {
-    loadEnvFile();
+    if (app.isPackaged) loadEnvFile(join(app.getPath("userData"), ".env"));
+    else loadEnvFile();
   } catch {
     // API setup is optional. The GUI reports missing settings.
   }
@@ -96,10 +97,7 @@ async function startDesktop(): Promise<void> {
     interrupt: () => speech.cancel(),
     now: () => performance.timeOrigin + performance.now(),
     window: () => session.nextInputWindow(),
-    submit: (text, openMic) => {
-      if (openMic && isStopRequest(text)) live.stop();
-      return session.submitText(text, "voice");
-    },
+    submit: (text) => session.submitText(text, "voice"),
   });
   window.webContents.session.setPermissionRequestHandler((contents, permission, decide, details) => {
     decide(contents === window.webContents && permission === "media" &&
@@ -123,6 +121,11 @@ async function startDesktop(): Promise<void> {
   }
 
   handle("desktop:snapshot", () => session.snapshot());
+  handle("desktop:settings-folder", async () => {
+    const path = app.getPath("userData");
+    await mkdir(path, { recursive: true });
+    if (await shell.openPath(path)) throw new Error("无法打开本机设置目录");
+  });
   handle("desktop:submit", (input, source) => {
     if (typeof input !== "string" || (source !== "gui" && source !== "voice")) {
       throw new TypeError("Invalid desktop input");

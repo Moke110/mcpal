@@ -52,9 +52,10 @@ test("trusted Minecraft input shares conversation scheduling with game observati
     { role: "operator", source: "minecraft", player: "Owner", text: "生命值" },
     { role: "companion", source: "minecraft", text: "当前生命值为 13。", publicReply: false },
   ]);
-  submit("跟随 Owner");
+  submit("跟随我");
   advance(1650);
   assert.deepEqual(actions, [{ kind: "follow", target: "Owner" }]);
+  assert.equal(session.snapshot().messages.at(-2)?.text, "跟随我");
   assert.deepEqual(sent.at(-1), { route: 1, text: "正在跟随Owner。" });
   submit("停止");
   assert.deepEqual(actions.at(-1), { kind: "stop" });
@@ -65,6 +66,34 @@ test("trusted Minecraft input shares conversation scheduling with game observati
   advance(3250);
   assert.doesNotMatch(sent.at(-1)?.text ?? "", /背包/u);
   session.dispose();
+});
+
+test("an explicit stop from the GUI or ASR releases a Minecraft chat follow without API live permission", () => {
+  for (const stop of [
+    (session: SimulationSession) => session.stop(),
+    (session: SimulationSession) => session.submitText("停止", "gui"),
+    (session: SimulationSession) => session.submitText("停止", "voice"),
+  ]) {
+    const { clock, advance } = fakeClock();
+    const actions: unknown[] = [];
+    const session = new SimulationSession(() => {}, clock, {
+      liveAction: (intent) => actions.push(intent),
+      api: {
+        origin: "http://127.0.0.1",
+        check: async () => ({ kind: "completed" }),
+        generate: async () => assert.fail("Stopping must not call the external backend"),
+      },
+    });
+    session.setBackend("api");
+    session.updateLiveObservation({ place: "overworld", players: [{ name: "Owner", distance: 8 }] },
+      { phase: "idle", target: null, result: null });
+    session.submitMinecraft({ text: "跟随 Owner", player: "Owner", replyRoute: null });
+    advance(850);
+    assert.deepEqual(actions, [{ kind: "follow", target: "Owner" }]);
+    stop(session);
+    assert.deepEqual(actions, [{ kind: "follow", target: "Owner" }, { kind: "stop" }]);
+    session.dispose();
+  }
 });
 
 test("状态追问读取变化后的游戏观测，并独立显示回复、任务和播报", () => {

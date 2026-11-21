@@ -12,7 +12,8 @@
     "controller": "node --env-file-if-exists=.env src/controller-cli.ts",
     "dev": "node --watch --env-file-if-exists=.env src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"test/**/*.test.ts\""
+    "test": "node --test \"test/**/*.test.ts\"",
+    "package:windows": "node scripts/package-windows.mjs"
   },
   "dependencies": {
     "mineflayer": "4.39.0",
@@ -27,5 +28,7 @@
     "prismarine-chunk": "1.41.0",
     "typescript": "~6.0.0",
     "vec3": "0.1.10"
-  }
+  },
+  "productName": "MC-Pal",
+  "main": "src/desktop/main.ts"
 }

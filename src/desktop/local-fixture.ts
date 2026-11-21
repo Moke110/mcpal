@@ -13,7 +13,7 @@ export function openLocalFixture(publish: () => void, overBudget: boolean): Loca
       await delay(input.inputs.at(-1)?.includes("慢速") ? 1800 : 130, undefined, { signal });
       const text = input.inputs.at(-1) ?? "";
       const target = input.observation?.players.find(({ name }) => text.endsWith(name))?.name;
-      const raw = text.startsWith("跟随") && target
+      const raw = /^(?:跟随|改跟)\s*/u.test(text) && target
         ? { reply: `准备跟随${target}。`, intent: { kind: "follow", target } }
         : { reply: /状态|在哪/u.test(text) ? `当前位置：${input.observation?.place ?? "未知"}。` : "请明确说出请求。",
           intent: { kind: "none" } };
