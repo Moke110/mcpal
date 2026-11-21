@@ -58,6 +58,8 @@ async function startDesktop(): Promise<void> {
     onReply: (reply) => speech.reply(reply),
     onSessionChange: () => speech.cancel(),
     invalidateLiveReplacement: () => live.invalidateReplacement(),
+    minecraftReplyRoute: () => live.chatReplyRoute(),
+    minecraftReply: (route, reply) => live.sendChatReply(route, reply),
     liveAction: (intent) => {
       if (intent.kind === "follow") live.replaceFollow(intent.target);
       if (intent.kind === "stop") live.stop();
@@ -131,14 +133,22 @@ async function startDesktop(): Promise<void> {
       inventory: observation.inventory?.map(({ name, count }) => ({ name, count })) ?? null,
     } : null, state.task);
     if (!window.isDestroyed()) window.webContents.send("minecraft:state", state);
-  }, (config, report, authPrompt) => connect(config, report, authPrompt, {
+  }, (config, report, authPrompt, options) => connect(config, report, authPrompt, {
+    ...options,
     profilesFolder: join(app.getPath("userData"), "minecraft-profiles"),
-  }));
+  }), (message) => {
+    speech.cancel();
+    session.submitMinecraft(message);
+  });
   handle("minecraft:snapshot", () => live.snapshot());
   handle("minecraft:connect", (settings) => live.open(settings));
   handle("minecraft:disconnect", () => live.disconnect());
   handle("minecraft:follow", (target) => live.follow(target));
   handle("minecraft:stop", () => live.stop());
+  handle("minecraft:chat-route", (enabled) => {
+    if (typeof enabled !== "boolean") throw new TypeError("Invalid Minecraft reply route");
+    live.setChatRoute(enabled);
+  });
   window.on("closed", () => {
     speech.dispose();
     session.dispose();
