@@ -5,6 +5,7 @@ import type { LocalBackend, LocalView } from "./local-backend.ts";
 import { authorizeModelOutput } from "./model-protocol.ts";
 import type { GameIntent, ModelObservation } from "./model-protocol.ts";
 import type { LiveMinecraftState, MinecraftOperatorInput } from "./live-session.ts";
+import { isStopRequest } from "./stop-request.js";
 
 const observations = [
   { place: "草地 · 主世界", players: [{ name: "小明", distance: 5.4 }] },
@@ -244,7 +245,7 @@ export class SimulationSession {
     this.#interruptPlayback();
     this.#replacement = null;
     this.#addMessage({ role: "operator", source, text: input, ...(player ? { player } : {}) });
-    if (/^(?:请\s*)?停止(?:跟随)?[。！!\s]*$/u.test(input)) {
+    if (isStopRequest(input)) {
       this.#stop(live);
       if (source === "minecraft") this.#reply("已请求停止。", source, replyRoute);
       return null;

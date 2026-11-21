@@ -19,6 +19,7 @@ function disposeGraph() {
   if (!graph) return;
   const { context } = graph;
   graph = undefined;
+  window.dispatchEvent(new Event("speech-reference-lost"));
   void context.close().catch(() => {});
 }
 
@@ -54,7 +55,7 @@ async function preparePlayer() {
   if (selected === "fixture-unavailable") throw new Error("模拟输出设备不可用");
   const context = new AudioContext({ latencyHint: "interactive", sinkId: fixture ? { type: "none" } : selected });
   const ready = Promise.all([context.resume(), context.audioWorklet.addModule("./speech-worklet.js")]);
-  const pending = { context, ready };
+  const pending = { context, ready, reference: context.createGain() };
   graph = pending;
   try {
     await ready;
@@ -67,14 +68,29 @@ async function preparePlayer() {
   }
 }
 
+async function openPlaybackReference() {
+  const context = await preparePlayer();
+  return { context, reference: graph.reference, playing: playbackActive() };
+}
+
+function playbackActive() {
+  return [...jobs.values()].some((job) => job.node);
+}
+
+function reportPlaybackReference() {
+  window.dispatchEvent(new CustomEvent("speech-reference-state", { detail: playbackActive() }));
+}
+
 function finish(job, failed = false, message = "") {
   clearTimeout(job.stopTimer);
   job.node?.disconnect();
   if (job.node) job.node.port.onmessage = null;
   jobs.delete(job.id);
+  if (job.node) reportPlaybackReference();
   if (active === job.id) {
     active = null;
     status.textContent = failed ? message : job.cancelled ? "已停播" : "播报完成";
+    if (failed && job.node) window.dispatchEvent(new Event("speech-reference-lost"));
   }
   void bridge.settleSpeech(job.id).catch(() => {});
   job.done?.();
@@ -135,6 +151,11 @@ async function playbackEvent(job, context, event) {
     if (event.lastFrame !== null) {
       const last = await presented(context, event.lastFrame + 1);
       if (jobs.has(job.id)) find("speech-last").textContent = frameLabel(event.lastFrame, last);
+      if (job.cancelled && jobs.has(job.id)) {
+        window.dispatchEvent(new CustomEvent("speech-interrupted", {
+          detail: performance.timeOrigin + (last ?? performance.now()),
+        }));
+      }
     }
     if (jobs.has(job.id)) finish(job);
   } catch (error) {
@@ -154,9 +175,11 @@ async function play(job, wave) {
       processorOptions: { samples: decoded.getChannelData(0) },
     });
     job.node = node;
+    reportPlaybackReference();
     node.port.onmessage = ({ data }) => void playbackEvent(job, context, data);
     node.onprocessorerror = () => finish(job, true, "音频播放设备错误");
     node.connect(context.destination);
+    node.connect(graph.reference);
   } catch (error) {
     if (jobs.has(job.id)) finish(job, true, `音频设备错误 · ${error.message}`);
   }
@@ -221,3 +244,5 @@ route.addEventListener("change", () => {
 navigator.mediaDevices?.addEventListener("devicechange", () => void refreshDevices());
 bridge.onSpeech(receive);
 void bridge.speechFixture().then((enabled) => { fixture = enabled; return refreshDevices(); });
+
+export { openPlaybackReference };

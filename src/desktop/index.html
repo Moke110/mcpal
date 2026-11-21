@@ -10,6 +10,7 @@
     <script defer src="./renderer.js"></script>
     <script type="module" src="./speech-renderer.js"></script>
     <script type="module" src="./asr-renderer.js"></script>
+    <script type="module" src="./open-mic-renderer.js"></script>
     <script defer src="./live-renderer.js"></script>
     <script defer src="./world-renderer.js"></script>
   </head>
@@ -125,7 +126,7 @@
           <button id="simulation-reconnect" type="button">模拟重连</button>
         </section>
         <section class="panel" aria-labelledby="asr-title">
-          <h2 id="asr-title">本机按键说话</h2>
+          <h2 id="asr-title">本机语音输入</h2>
           <label class="control"><input id="asr-enable" type="checkbox" disabled> 启用麦克风</label>
           <label class="control" for="asr-device">输入设备 <select id="asr-device"><option value="">系统默认设备</option></select></label>
           <p id="asr-device-status" role="status">等待配置</p>
@@ -152,6 +153,27 @@
             <div><dt>松键</dt><dd id="asr-release-time">—</dd></div>
             <div><dt>ASR 最终结果</dt><dd id="asr-final-time">—</dd></div>
             <div><dt>读取窗口</dt><dd id="asr-window">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="open-mic-title">
+          <h2 id="open-mic-title">开放麦</h2>
+          <label class="control"><input id="open-mic-enable" type="checkbox" disabled> 持续监听并消除播报回声</label>
+          <p id="open-mic-status" role="status">未启用</p>
+          <label id="open-mic-fixture" hidden>模拟声源
+            <select id="open-mic-scenario">
+              <option value="echo">仅播放参考（多路径回声）</option>
+              <option value="status">插话追问</option>
+              <option value="stop">插话停止</option>
+              <option value="error">参考中断</option>
+            </select>
+          </label>
+          <dl class="metrics">
+            <div><dt>回声参考</dt><dd id="open-mic-reference">—</dd></div>
+            <div><dt>插话开始</dt><dd id="open-mic-start">—</dd></div>
+            <div><dt>实际停播</dt><dd id="open-mic-cut">—</dd></div>
+            <div><dt>ASR 最终结果</dt><dd id="open-mic-final">—</dd></div>
+            <div><dt>任务终止</dt><dd id="open-mic-stop">—</dd></div>
           </dl>
         </section>
 

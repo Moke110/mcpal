@@ -10,6 +10,7 @@ import { openLocalFixture } from "./local-fixture.ts";
 import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
 import { SpeechOutput } from "./speech-output.ts";
+import { isStopRequest } from "./stop-request.js";
 import { VoiceInput } from "./voice-input.ts";
 import { openAsrFixture, openVosk } from "./vosk-asr.ts";
 import { synthesizeSpeechFixture, synthesizeWindowsSpeech } from "./windows-speech.ts";
@@ -86,6 +87,7 @@ async function startDesktop(): Promise<void> {
     },
   });
   const asrFixture = process.env.MCPAL_ASR_FIXTURE === "1";
+  let openMicEnabled = false;
   const voice = new VoiceInput({
     open: (events, mode) => asrFixture ? openAsrFixture(events, mode) : openVosk(events, process.env),
     publish: (state) => {
@@ -94,13 +96,17 @@ async function startDesktop(): Promise<void> {
     interrupt: () => speech.cancel(),
     now: () => performance.timeOrigin + performance.now(),
     window: () => session.nextInputWindow(),
-    submit: (text) => session.submitText(text, "voice"),
+    submit: (text, openMic) => {
+      if (openMic && isStopRequest(text)) live.stop();
+      return session.submitText(text, "voice");
+    },
   });
   window.webContents.session.setPermissionRequestHandler((contents, permission, decide, details) => {
     decide(contents === window.webContents && permission === "media" &&
       details.isMainFrame && details.requestingUrl === page.href &&
       "mediaTypes" in details && details.mediaTypes?.length === 1 &&
-      details.mediaTypes[0] === "audio" && voice.snapshot().phase === "recording");
+      details.mediaTypes[0] === "audio" &&
+      (!asrFixture && openMicEnabled || voice.snapshot().phase === "recording"));
   });
 
   function handle(
@@ -161,14 +167,25 @@ async function startDesktop(): Promise<void> {
     if (typeof id !== "number" || !Number.isSafeInteger(id)) throw new TypeError("Invalid speech ID");
     speech.settled(id);
   });
-  handle("desktop:asr-config", () => ({ fixture: asrFixture, configured: !!process.env.MCPAL_ASR_MODEL }));
+  handle("desktop:asr-config", () => ({
+    fixture: asrFixture, openMicFixture: asrFixture && fixture, configured: !!process.env.MCPAL_ASR_MODEL,
+  }));
   handle("desktop:asr-enable", (enabled) => {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid ASR route");
+    if (!enabled) openMicEnabled = false;
     voice.setEnabled(enabled);
   });
-  handle("desktop:asr-start", (mode, token) => {
+  handle("desktop:open-mic-enable", (enabled) => {
+    if (typeof enabled !== "boolean") throw new TypeError("Invalid open microphone setting");
+    openMicEnabled = enabled && voice.snapshot().enabled &&
+      (asrFixture ? fixture : !!process.env.MCPAL_ASR_MODEL);
+    if (!openMicEnabled) voice.cancelOpenMic();
+    return openMicEnabled;
+  });
+  handle("desktop:asr-start", (mode, token, openMic = false) => {
     if (typeof token !== "string" || token.length !== 36) throw new TypeError("Invalid capture token");
-    return voice.start(asrFixture && typeof mode === "string" ? mode : "", token);
+    if (typeof openMic !== "boolean" || (openMic && !openMicEnabled)) return null;
+    return voice.start(asrFixture && typeof mode === "string" ? mode : "", token, openMic);
   });
   handle("desktop:asr-audio", (id, pcm) => {
     if (typeof id === "number" && pcm instanceof Uint8Array) voice.write(id, pcm);

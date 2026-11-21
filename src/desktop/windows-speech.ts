@@ -63,6 +63,10 @@ export async function synthesizeSpeechFixture(_text: string, signal: AbortSignal
   wave.writeUInt16LE(16, 34);
   wave.write("data", 36);
   wave.writeUInt32LE(bytes, 40);
-  for (let i = 44; i < wave.length; i += 2) wave.writeInt16LE((i % 64) - 32, i);
+  let seed = 42;
+  for (let i = 44; i < wave.length; i += 2) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    wave.writeInt16LE(Math.round((seed / 2 ** 32 - 0.5) * 11000), i);
+  }
   return new Uint8Array(wave);
 }
