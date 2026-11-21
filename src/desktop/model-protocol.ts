@@ -10,7 +10,7 @@ export type ModelInput = {
   inputs: readonly string[];
   observation: ModelObservation | null;
 };
-export type GameIntent = { kind: "none" | "stop" } | { kind: "follow"; target: string };
+export type GameIntent = { kind: "none" } | { kind: "stop" } | { kind: "follow"; target: string };
 export type ModelOutput = { reply: string; intent: GameIntent };
 
 export const modelInstructions = [
