@@ -49,6 +49,7 @@ type Options<Input, Observation, Output> = {
   start: (request: ReadRequest<Input, Observation>, result: ReadResult<Output>) => void;
   commit: (output: Output) => void;
   changed: () => void;
+  abortSuperseded?: () => boolean;
 };
 
 type Status = "idle" | "reading" | "running" | "staged" | "committed" | "timeout" | "cancelled" | "rejected";
@@ -120,6 +121,11 @@ export class ReadWindowScheduler<Input, Observation, Output> {
     this.#revision++;
     this.#invalidateResult();
     this.#inputs.push(structuredClone(input));
+    if (this.#options.abortSuperseded?.() && this.#running?.cancelled) {
+      const invalidated = this.#running;
+      this.#running = undefined;
+      invalidated.controller.abort();
+    }
     this.#status = "reading";
     this.#firstMs = null;
     this.#completeMs = null;
@@ -149,6 +155,8 @@ export class ReadWindowScheduler<Input, Observation, Output> {
     if (switchSession) {
       this.#session++;
       this.#recent = [];
+      this.#firstMs = null;
+      this.#completeMs = null;
     }
     this.#invalidateResult();
     if (this.#queued || this.#inputs.length) this.#totals.cancelled++;

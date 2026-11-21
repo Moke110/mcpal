@@ -74,9 +74,26 @@
         <section class="panel" aria-labelledby="settings-title">
           <h2 id="settings-title">连接与后端</h2>
           <dl>
-            <div><dt>Minecraft</dt><dd>未连接</dd></div>
-            <div><dt>模型后端</dt><dd>模拟后端</dd></div>
+            <div><dt>观测来源</dt><dd id="api-observation-source">模拟观测</dd></div>
           </dl>
+          <label class="control" for="model-backend">模型后端
+            <select id="model-backend">
+              <option value="simulated">模拟后端</option>
+              <option value="api">外部 API</option>
+            </select>
+          </label>
+          <div>
+            <p id="api-origin" class="live-note"></p>
+            <button id="api-test" type="button">测试 API 连接</button>
+            <label id="api-live-option" class="control" hidden>
+              <input id="api-live" type="checkbox"> 使用实机观测与控制
+            </label>
+            <dl aria-live="polite">
+              <div><dt>连接测试</dt><dd id="api-test-result"></dd></div>
+              <div><dt>API 请求</dt><dd id="api-request"></dd></div>
+              <div><dt>取消尝试</dt><dd id="api-cancelled"></dd></div>
+            </dl>
+          </div>
           <label class="control" for="simulation-scenario">模拟延迟
             <select id="simulation-scenario">
               <option value="normal">正常</option>
