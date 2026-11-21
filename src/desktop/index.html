@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="./style.css">
     <link rel="stylesheet" href="./live.css">
     <script defer src="./renderer.js"></script>
+    <script type="module" src="./speech-renderer.js"></script>
     <script defer src="./live-renderer.js"></script>
   </head>
   <body>
@@ -87,6 +88,23 @@
           </label>
           <label class="control"><input id="timeout" type="checkbox"> 让下一条回复超时</label>
           <button id="simulation-reconnect" type="button">模拟重连</button>
+        </section>
+        <section class="panel" aria-labelledby="speech-title">
+          <h2 id="speech-title">本机播报</h2>
+          <label class="control" for="speech-device">输出设备 <select id="speech-device"><option value="">系统默认设备</option></select></label>
+          <p id="speech-device-status" role="status">待连接</p>
+          <label class="control"><input id="speech-enable" type="checkbox"> 播报已校验回复</label>
+          <div class="speech-controls">
+            <button id="speech-devices" type="button">刷新设备</button>
+            <button id="speech-preview" type="button">试听</button>
+            <button id="speech-stop" type="button">停播</button>
+          </div>
+          <dl>
+            <div><dt>状态</dt><dd id="speech-status" role="status">未开始</dd></div>
+            <div><dt>合成完成耗时</dt><dd id="speech-synthesis">—</dd></div>
+            <div><dt>首音帧</dt><dd id="speech-first">—</dd></div>
+            <div><dt>最近输出末帧</dt><dd id="speech-last">—</dd></div>
+          </dl>
         </section>
       </aside>
     </div>
