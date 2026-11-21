@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("companion", {
   reconnectSimulation: () => ipcRenderer.invoke("desktop:simulation-reconnect"),
   stop: () => ipcRenderer.invoke("desktop:stop"),
   testApi: () => ipcRenderer.invoke("desktop:test-api"),
+  startLocal: () => ipcRenderer.invoke("desktop:start-local"),
+  stopLocal: () => ipcRenderer.invoke("desktop:stop-local"),
   selectBackend: (backend) => ipcRenderer.invoke("desktop:select-backend", backend),
   setApiLive: (enabled) => ipcRenderer.invoke("desktop:api-live", enabled),
   speechFixture: () => ipcRenderer.invoke("desktop:speech-fixture"),

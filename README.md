@@ -18,6 +18,12 @@ npm.cmd run desktop
 3. 游戏观测显示小雨时发送「改跟小雨」，观察旧任务清理完成后再开始新任务。点击「停止任务」终止跟随。
 4. 勾选「让下一条回复超时」后发送「跟随小明」，查看超时状态，确认过期回复没有触发动作或播报。
 
+### Windows 本地模型
+
+在本机准备支持 CUDA 的 [llama.cpp Windows 运行时](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)和带有聊天模板的开放权重 GGUF。用绝对路径设置 `MCPAL_LOCAL_SERVER`（`llama-server.exe`）和 `MCPAL_LOCAL_MODEL`（GGUF 文件）。可设置 `MCPAL_LOCAL_CONTEXT`（默认 2048）和 `MCPAL_LOCAL_GPU_LAYERS`（默认 99）。本地模式不依赖 API 凭据。选择「本地模型」，点击「启动并预热」。就绪后可发送「我在哪」「跟随小明」「停止」和「随便做点什么」，核对回复、任务和读取窗口的完整校验耗时。用「卸载模型」回收进程。切换后端也会卸载模型。
+
+显存面板累计同一主模型进程在 WDDM 中的独显和共享用量峰值，覆盖启动、预热和对话。采样间隔为查询完成后等待 100 毫秒，实际最大间隔单独显示。独显样本达到 6,000,000,000 字节或就绪所需的计数器不可用时，中止请求并停止进程。验收时记录模型文件名、运行时版本、显卡驱动、上下文、GPU 层数、采样数和最大间隔，重复冷启动与多轮交互，并保存独显和共享峰值。抽样无法覆盖间隔内的瞬间峰值。测试进程可设 `MCPAL_LOCAL_FIXTURE=1` 或 `MCPAL_LOCAL_FIXTURE=over-budget`，分别模拟就绪和等于上限的失败，无需权重或推理。
+
 ### 外部 API 后端
 
 从仓库根目录启动桌面应用前，在本机 `.env` 或桌面进程环境中设置 `MCPAL_API_BASE_URL`、`MCPAL_API_MODEL`、`MCPAL_API_KEY`。地址是供应方 OpenAI 兼容接口的基础路径（通常以 `/v1` 结尾）。外部地址使用 HTTPS，本机回环夹具也支持 HTTP。连接测试查询 `GET /models`。对话使用 `POST /chat/completions` 的流式结果。
