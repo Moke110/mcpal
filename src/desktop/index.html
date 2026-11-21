@@ -11,6 +11,7 @@
     <script type="module" src="./speech-renderer.js"></script>
     <script type="module" src="./asr-renderer.js"></script>
     <script defer src="./live-renderer.js"></script>
+    <script defer src="./world-renderer.js"></script>
   </head>
   <body>
     <header class="app-header">
@@ -221,6 +222,28 @@
       </section>
 
       <aside aria-label="实机观测和控制">
+        <section class="panel" aria-labelledby="world-view-title">
+          <div class="panel-title">
+            <h2 id="world-view-title">伙伴视角</h2>
+            <button id="world-view-toggle" type="button" aria-pressed="false">第一人称</button>
+          </div>
+          <p id="world-view-status" role="status">第一人称已关闭</p>
+          <canvas id="world-view" width="256" height="144" aria-label="已同步方块的第一人称视图" hidden></canvas>
+        </section>
+        <section class="panel" aria-labelledby="identity-title">
+          <h2 id="identity-title">桌面外观</h2>
+          <div class="identity-preview">
+            <canvas id="skin-preview" width="16" height="32" aria-label="本地皮肤预览"></canvas>
+            <div>
+              <label for="desktop-nickname">桌面昵称</label>
+              <input id="desktop-nickname" maxlength="32" autocomplete="off" value="MC-Pal">
+              <label for="desktop-skin">预览皮肤 PNG</label>
+              <input id="desktop-skin" type="file" accept="image/png">
+              <p id="skin-preview-status" role="status">默认桌面预览</p>
+            </div>
+          </div>
+          <p class="live-note">昵称和预览仅用于此桌面。Microsoft 角色名及游戏中可见的皮肤由账号和服务端决定。离线玩家名来自连接设置。</p>
+        </section>
         <section class="panel" aria-labelledby="live-observation-title">
           <h2 id="live-observation-title">实机游戏观测</h2>
           <dl>

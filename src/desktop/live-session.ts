@@ -4,7 +4,8 @@ import type { TrustedMinecraftChat } from "../controls.ts";
 import type { Observation } from "../perception.ts";
 import type { TaskResult } from "../tasks.ts";
 
-type Connection = Pick<ReturnType<typeof connect>, "io" | "close" | "closed" | "chat">;
+type Connection = Pick<ReturnType<typeof connect>, "io" | "close" | "closed" | "chat"> &
+  Partial<Pick<ReturnType<typeof connect>, "readView">>;
 type OpenConnection = (...args: Parameters<typeof connect>) => Connection;
 type TaskPhase = "idle" | "pending" | "following" | "stopping" | "released";
 
@@ -62,6 +63,10 @@ export class LiveMinecraftSession {
 
   snapshot(): LiveMinecraftSnapshot {
     return structuredClone({ ...this.#state, active: this.#connection !== undefined, publicChat: this.#publicChat });
+  }
+
+  readView() {
+    return this.#state.phase === "ready" ? this.#connection?.readView?.() ?? null : null;
   }
 
   open(settings: unknown): void {
