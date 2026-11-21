@@ -35,12 +35,14 @@ function renderConversation(messages) {
   const serialized = JSON.stringify(messages);
   if (serialized === lastMessages) return;
   lastMessages = serialized;
-  const items = messages.map(({ role, source, text }) => {
+  const items = messages.map(({ role, source, text, player, publicReply }) => {
     const message = document.createElement("article");
     message.className = `message ${role}`;
     const speaker = document.createElement("span");
     speaker.className = "speaker";
-    speaker.textContent = role === "companion" ? "MC-Pal" : source === "voice" ? "你 · 语音" : "你";
+    speaker.textContent = role === "companion"
+      ? publicReply ? "MC-Pal · GUI 和 Minecraft" : "MC-Pal"
+      : source === "minecraft" ? `${player} · Minecraft` : source === "voice" ? "你 · 语音" : "你";
     const paragraph = document.createElement("p");
     paragraph.textContent = text;
     message.append(speaker, paragraph);

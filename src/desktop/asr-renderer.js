@@ -10,6 +10,7 @@ const now = () => performance.timeOrigin + performance.now();
 let capture = null;
 let press = null;
 let latest = "idle";
+let latestToken = null;
 
 enable.disabled = !config.fixture && !config.configured;
 find("asr-fixture").hidden = !config.fixture;
@@ -26,6 +27,7 @@ function stamp(value) {
 }
 
 bridge.onAsr((state) => {
+  if (state.token !== latestToken) return;
   latest = state.phase;
   find("asr-status").textContent = phases[state.phase] + (state.message ? " · " + state.message : "") +
     (state.late ? " · 晚到，进入后续读取窗口" : "");
@@ -84,12 +86,13 @@ function ready(current) {
 async function start() {
   if (!enable.checked) return;
   if (capture) discard();
-  const current = { id: null, releasedAt: null, mode: fixtureMode.value, pending: Promise.resolve() };
+  latestToken = crypto.randomUUID();
+  const current = { id: null, token: latestToken, releasedAt: null, mode: fixtureMode.value, pending: Promise.resolve() };
   capture = current;
   record.setAttribute("aria-pressed", "true");
   current.limit = setTimeout(() => discard(), 30_000);
   try {
-    const id = await bridge.startAsr(current.mode);
+    const id = await bridge.startAsr(current.mode, current.token);
     if (id === null) {
       if (capture === current) discard(false);
       return;

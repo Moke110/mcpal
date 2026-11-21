@@ -11,6 +11,7 @@ export type StreamingRecognizer = {
 };
 
 type State = {
+  token: string | null;
   enabled: boolean;
   phase: "idle" | "recording" | "processing" | "final" | "empty" | "cancelled" | "error";
   partial: string;
@@ -33,7 +34,7 @@ type Options = {
 };
 
 const initial: State = {
-  enabled: false, phase: "idle", partial: "", final: "", message: "",
+  token: null, enabled: false, phase: "idle", partial: "", final: "", message: "",
   lastVoiceAt: null, releasedAt: null, finalAt: null, window: null, late: false,
 };
 
@@ -63,12 +64,12 @@ export class VoiceInput {
     this.#publish();
   }
 
-  start(fixture = ""): number | null {
+  start(fixture = "", token: string | null = null): number | null {
     if (!this.#state.enabled) return null;
     this.#retire();
     const id = ++this.#nextId;
     this.#active = { id, bytes: 0, releaseWindow: null };
-    this.#state = { ...initial, enabled: true, phase: "recording" };
+    this.#state = { ...initial, token, enabled: true, phase: "recording" };
     this.#options.interrupt();
     this.#publish();
     try {

@@ -43,3 +43,6 @@
 #minecraft-follow-form { margin-top: 12px; }
 .live-action-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
 .live-action-row select { flex: 1 1 90px; }
+.live-chat { border-top: 1px solid #dce4d9; margin-top: 16px; padding-top: 12px; }
+#live-chat-log { padding-left: 20px; overflow-wrap: anywhere; }
+#live-chat-log li + li { margin-top: 4px; }

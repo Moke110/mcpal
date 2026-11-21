@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld("companion", {
   onSpeech: (listener) => ipcRenderer.on("desktop:speech-event", (_event, event) => listener(event)),
   asrConfig: () => ipcRenderer.invoke("desktop:asr-config"),
   enableAsr: (enabled) => ipcRenderer.invoke("desktop:asr-enable", enabled),
-  startAsr: (mode) => ipcRenderer.invoke("desktop:asr-start", mode),
+  startAsr: (mode, token) => ipcRenderer.invoke("desktop:asr-start", mode, token),
   sendAsrAudio: (id, pcm) => ipcRenderer.invoke("desktop:asr-audio", id, pcm),
   releaseAsr: (id, voicedAt, releasedAt) => ipcRenderer.invoke("desktop:asr-release", id, voicedAt, releasedAt),
   cancelAsr: (id) => ipcRenderer.invoke("desktop:asr-cancel", id),
@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld("minecraft", {
   disconnect: () => ipcRenderer.invoke("minecraft:disconnect"),
   follow: (target) => ipcRenderer.invoke("minecraft:follow", target),
   stop: () => ipcRenderer.invoke("minecraft:stop"),
+  setChatRoute: (enabled) => ipcRenderer.invoke("minecraft:chat-route", enabled),
   onState: (listener) => {
     ipcRenderer.on("minecraft:state", (_event, state) => listener(state));
   },

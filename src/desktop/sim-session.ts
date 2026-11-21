@@ -3,7 +3,7 @@ import type { ReadRequest, ReadResult, WindowClock } from "./read-window.ts";
 import type { ApiBackend, ApiCheck, ApiResult } from "./api-backend.ts";
 import { authorizeModelOutput } from "./model-protocol.ts";
 import type { GameIntent, ModelObservation } from "./model-protocol.ts";
-import type { LiveMinecraftState } from "./live-session.ts";
+import type { LiveMinecraftState, MinecraftOperatorInput } from "./live-session.ts";
 
 const observations = [
   { place: "草地 · 主世界", players: [{ name: "小明", distance: 5.4 }] },
@@ -13,24 +13,29 @@ const observations = [
   },
 ];
 
-type Source = "gui" | "voice";
+type Source = "gui" | "voice" | "minecraft";
 type Message = {
   role: "operator" | "companion";
   source: Source;
   text: string;
+  player?: string;
+  publicReply?: boolean;
 };
 type Observation = ModelObservation;
-type FrozenObservation = { value: Observation | null; live: boolean };
+type FrozenObservation = { simulated: Observation; live: Observation | null };
 type ApiStatus = { kind: "idle" | "pending" } | ApiCheck;
 type SessionOptions = {
   api?: ApiBackend | null;
   liveAction?: (intent: GameIntent) => void;
   invalidateLiveReplacement?: () => void;
   onReply?: (text: string) => void;
+  onInputAccepted?: () => void;
   onSessionChange?: () => void;
+  minecraftReplyRoute?: () => number | null;
+  minecraftReply?: (route: number, text: string) => boolean;
 };
-type Input = { text: string; source: Source; timeout: boolean };
-type Intent = { source: Source; text: string; follow?: string; stop?: boolean; live?: boolean };
+type Input = { text: string; source: Source; timeout: boolean; live: boolean; replyRoute: number | null };
+type Intent = Pick<Input, "source" | "live" | "replyRoute"> & { text: string; follow?: string; stop?: boolean };
 export const scenarios = ["normal", "fast", "slow", "jitter", "duplicate"] as const;
 type Scenario = (typeof scenarios)[number];
 
@@ -95,7 +100,8 @@ export class SimulationSession {
     this.#scheduler = new ReadWindowScheduler({
       clock,
       start: (request, result) => {
-        if (this.#state.backend === "api") void this.#generate(request, result);
+        const live = request.inputs.at(-1)?.live;
+        if (this.#state.backend === "api" && (!live || this.#state.api.live)) void this.#generate(request, result);
         else this.#simulate(request, result);
       },
       commit: (intent) => this.#commitIntent(intent),
@@ -151,7 +157,7 @@ export class SimulationSession {
     this.#state.api.liveTask = { phase: task.phase, target: task.target };
     const available = this.#liveObservation !== null;
     this.#liveObservation = observation;
-    if (this.#disposed || !this.#state.api.live) return;
+    if (this.#disposed) return;
     if (available !== (observation !== null)) {
       this.#options.invalidateLiveReplacement?.();
       this.#options.onSessionChange?.();
@@ -164,8 +170,7 @@ export class SimulationSession {
   }
 
   #observe(): void {
-    const live = this.#state.api.live;
-    this.#scheduler.observe({ live, value: live ? this.#liveObservation : this.#state.observation });
+    this.#scheduler.observe({ live: this.#liveObservation, simulated: this.#state.observation });
   }
 
   setTimeoutNext(enabled: boolean): void {
@@ -190,25 +195,41 @@ export class SimulationSession {
     return this.#scheduler.nextInputWindow();
   }
 
-  submitText(text: string, source: Source): number | null {
+  submitText(text: string, source: Exclude<Source, "minecraft">): number | null {
+    const live = this.#state.api.live;
+    return this.#submit(text, source, live, live ? this.#options.minecraftReplyRoute?.() ?? null : null);
+  }
+
+  submitMinecraft({ text, player, replyRoute }: MinecraftOperatorInput): void {
+    if (!this.#liveObservation) return;
+    this.#submit(text, "minecraft", true, replyRoute, player);
+  }
+
+  #submit(text: string, source: Source, live: boolean, replyRoute: number | null, player?: string): number | null {
     const input = text.trim();
     if (!input || input.length > 500) return null;
+    this.#options.onInputAccepted?.();
     this.#options.invalidateLiveReplacement?.();
     this.#interruptPlayback();
     this.#replacement = null;
-    this.#addMessage({ role: "operator", source, text: input });
+    this.#addMessage({ role: "operator", source, text: input, ...(player ? { player } : {}) });
     if (/^(?:请\s*)?停止(?:跟随)?[。！!\s]*$/u.test(input)) {
-      this.stop();
+      this.#stop(live);
+      if (source === "minecraft") this.#reply("已请求停止。", source, replyRoute);
       return null;
     }
     const timeout = this.#state.timeoutNext;
     this.#state.timeoutNext = false;
-    return this.#scheduler.submit({ text: input, source, timeout });
+    return this.#scheduler.submit({ text: input, source, timeout, live, replyRoute });
   }
 
   stop(): void {
+    this.#stop(this.#state.api.live);
+  }
+
+  #stop(live: boolean): void {
     this.#interruptPlayback();
-    if (this.#state.api.live) this.#options.liveAction?.({ kind: "stop" });
+    if (live) this.#options.liveAction?.({ kind: "stop" });
     this.#beginCleanup(null);
     this.#scheduler.cancel();
   }
@@ -237,9 +258,9 @@ export class SimulationSession {
       if (generation === this.#apiGeneration) this.#state.api.request = { kind: "cancelled" };
       this.#emit();
     }, { once: true });
-    const observation = request.observation?.value ?? null;
+    const observation = (input.live ? request.observation?.live : request.observation?.simulated) ?? null;
     const response: ApiResult = await backend.generate({
-      inputs: request.inputs.map(({ text }) => text), observation,
+      inputs: request.inputs.filter(({ live }) => live === input.live).map(({ text }) => text), observation,
     }, request.signal, result.first);
     if (this.#disposed || request.signal.aborted || generation !== this.#apiGeneration) return;
     this.#state.api.request = response.kind === "http" ? response : { kind: response.kind };
@@ -249,14 +270,14 @@ export class SimulationSession {
     }
     const { intent, reply } = authorizeModelOutput(response.output, input.text);
     result.complete({
-      source: input.source, text: reply, live: request.observation?.live,
+      source: input.source, text: reply, live: input.live, replyRoute: input.replyRoute,
       follow: intent.kind === "follow" ? intent.target : undefined, stop: intent.kind === "stop",
     });
   }
 
   #simulate(request: ReadRequest<Input, FrozenObservation>, result: ReadResult<Intent>): void {
     const input = request.inputs.at(-1);
-    const observation = request.observation?.value;
+    const observation = input?.live ? request.observation?.live : request.observation?.simulated;
     if (!input || !observation) {
       result.reject();
       return;
@@ -281,19 +302,30 @@ export class SimulationSession {
 
   #resolve(input: Input, observation: Observation): Intent {
     const { place, players } = observation;
+    const { source, live, replyRoute } = input;
+    const context = { source, live, replyRoute };
     const follow = /^(?:请\s*)?(?:改成跟随|改为跟随|改跟|跟随|跟着)\s*(.+?)[。！!\s]*$/u.exec(input.text);
     const target = follow?.[1];
     if (target) {
       if (!players.some(({ name }) => target === name)) {
-        return { source: input.source, text: `目前观测不到${target}，跟随任务保持原状。` };
+        return { ...context, text: `目前观测不到${target}，跟随任务保持原状。` };
       }
-      return { source: input.source, text: `正在跟随${target}。`, follow: target };
+      return { ...context, text: `正在跟随${target}。`, follow: target };
+    }
+    if (live && /生命|血量|health/iu.test(input.text)) {
+      const { health } = observation;
+      return { ...context, text: health == null ? "当前生命值未知。" : `当前生命值为 ${health}。` };
+    }
+    if (live && /背包|物品|inventory/iu.test(input.text)) {
+      const { inventory } = observation;
+      const items = inventory?.map(({ name, count }) => `${name} × ${count}`).join("、");
+      return { ...context, text: inventory == null ? "当前背包未知。" : items ? `当前背包有 ${items}。` : "当前背包为空。" };
     }
     const nearby = players.map(({ name, distance }) => `${name}（${distance} 格）`).join("、");
-    return { source: input.source, text: `我在${place}，附近有${nearby}。` };
+    return { ...context, text: nearby ? `我在${place}，附近有${nearby}。` : `我在${place}，附近没有可见玩家。` };
   }
 
-  #commitIntent({ follow: target, text, source, stop, live }: Intent): void {
+  #commitIntent({ follow: target, text, source, stop, live, replyRoute }: Intent): void {
     if (live) {
       if (stop) this.#options.liveAction?.({ kind: "stop" });
       if (target && this.#liveObservation?.players.some(({ name }) => name === target)) {
@@ -301,7 +333,7 @@ export class SimulationSession {
       } else if (target) {
         text = "当前游戏观测中已看不到该玩家。";
       }
-      this.#reply(text, source);
+      this.#reply(text, source, replyRoute);
       return;
     }
     if (stop) this.#beginCleanup(null);
@@ -345,8 +377,9 @@ export class SimulationSession {
     });
   }
 
-  #reply(text: string, source: Source): void {
-    this.#addMessage({ role: "companion", source, text });
+  #reply(text: string, source: Source, replyRoute: number | null = null): void {
+    const publicReply = replyRoute !== null && (this.#options.minecraftReply?.(replyRoute, text) ?? false);
+    this.#addMessage({ role: "companion", source, text, ...(source === "minecraft" || publicReply ? { publicReply } : {}) });
     this.#options.onReply?.(text);
     this.#state.reply = "ready";
     this.#state.playback = { phase: "playing" };

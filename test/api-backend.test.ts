@@ -193,6 +193,7 @@ test("new input or a session change discards a live replacement without stopping
       report = listener;
       return {
         closed: new Promise(() => {}), close: () => {},
+        chat: { send: () => false },
         io: {
           read: () => observation, readBlock: () => null,
           execute: (action) => {

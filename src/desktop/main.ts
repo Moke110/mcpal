@@ -58,11 +58,17 @@ async function startDesktop(): Promise<void> {
   }, undefined, {
     api,
     onReply: (reply) => speech.reply(reply),
+    onInputAccepted: () => {
+      speech.cancel();
+      voice.cancel();
+    },
     onSessionChange: () => {
       speech.cancel();
       voice.cancel();
     },
     invalidateLiveReplacement: () => live.invalidateReplacement(),
+    minecraftReplyRoute: () => live.chatReplyRoute(),
+    minecraftReply: (route, reply) => live.sendChatReply(route, reply),
     liveAction: (intent) => {
       if (intent.kind === "follow") live.replaceFollow(intent.target);
       if (intent.kind === "stop") live.stop();
@@ -77,10 +83,7 @@ async function startDesktop(): Promise<void> {
     interrupt: () => speech.cancel(),
     now: () => performance.timeOrigin + performance.now(),
     window: () => session.nextInputWindow(),
-    submit: (text) => {
-      speech.cancel();
-      return session.submitText(text, "voice");
-    },
+    submit: (text) => session.submitText(text, "voice"),
   });
   window.webContents.session.setPermissionRequestHandler((contents, permission, decide, details) => {
     decide(contents === window.webContents && permission === "media" &&
@@ -107,7 +110,6 @@ async function startDesktop(): Promise<void> {
     if (typeof input !== "string" || (source !== "gui" && source !== "voice")) {
       throw new TypeError("Invalid desktop input");
     }
-    if (input.trim().length > 0 && input.trim().length <= 500) speech.cancel();
     session.submitText(input, source);
   });
   handle("desktop:observe", () => session.advanceObservation());
@@ -151,7 +153,10 @@ async function startDesktop(): Promise<void> {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid ASR route");
     voice.setEnabled(enabled);
   });
-  handle("desktop:asr-start", (mode) => voice.start(asrFixture && typeof mode === "string" ? mode : ""));
+  handle("desktop:asr-start", (mode, token) => {
+    if (typeof token !== "string" || token.length !== 36) throw new TypeError("Invalid capture token");
+    return voice.start(asrFixture && typeof mode === "string" ? mode : "", token);
+  });
   handle("desktop:asr-audio", (id, pcm) => {
     if (typeof id === "number" && pcm instanceof Uint8Array) voice.write(id, pcm);
   });
@@ -177,9 +182,10 @@ async function startDesktop(): Promise<void> {
       inventory: observation.inventory?.map(({ name, count }) => ({ name, count })) ?? null,
     } : null, state.task);
     if (!window.isDestroyed()) window.webContents.send("minecraft:state", state);
-  }, (config, report, authPrompt) => connect(config, report, authPrompt, {
+  }, (config, report, authPrompt, options) => connect(config, report, authPrompt, {
+    ...options,
     profilesFolder: join(app.getPath("userData"), "minecraft-profiles"),
-  }));
+  }), (message) => session.submitMinecraft(message));
   handle("minecraft:snapshot", () => live.snapshot());
   handle("minecraft:connect", (settings) => live.open(settings));
   handle("minecraft:disconnect", () => live.disconnect());
@@ -187,6 +193,10 @@ async function startDesktop(): Promise<void> {
   handle("minecraft:stop", () => {
     voice.cancel();
     live.stop();
+  });
+  handle("minecraft:chat-route", (enabled) => {
+    if (typeof enabled !== "boolean") throw new TypeError("Invalid Minecraft reply route");
+    live.setChatRoute(enabled);
   });
   window.on("closed", () => {
     voice.cancel();
