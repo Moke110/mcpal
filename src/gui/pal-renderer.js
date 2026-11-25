@@ -49,6 +49,11 @@ document.querySelector("#new-pal").addEventListener("click", () => showPanel(cre
 for (const id of ["show-simulation", "show-minecraft"]) {
   document.getElementById(id).addEventListener("click", () => showPanel(workspaces));
 }
+const maximize = document.querySelector('[data-window-control="toggle-maximize"]');
+profiles.onWindowMaximized((maximized) => {
+  maximize.textContent = maximized ? "❐" : "□";
+  maximize.setAttribute("aria-label", maximized ? "还原" : "最大化");
+});
 for (const control of document.querySelectorAll("[data-window-control]")) {
   control.addEventListener("click", () => void profiles.windowControl(control.dataset.windowControl));
 }

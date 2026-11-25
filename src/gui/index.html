@@ -10,7 +10,7 @@
     <script type="module" src="./pal-play-renderer.js"></script>
     <script type="module" src="./pal-renderer.js"></script>
     <script type="module" src="./pal-chat-renderer.js"></script>
-    <script defer src="./renderer.js"></script>
+    <script type="module" src="./renderer.js"></script>
     <script type="module" src="./speech-renderer.js"></script>
     <script type="module" src="./asr-renderer.js"></script>
     <script type="module" src="./open-mic-renderer.js"></script>
@@ -26,7 +26,7 @@
       </nav>
       <div class="window-controls">
         <button type="button" data-window-control="minimize" aria-label="最小化">−</button>
-        <button type="button" data-window-control="toggle-maximize" aria-label="最大化或还原">□</button>
+        <button type="button" data-window-control="toggle-maximize" aria-label="最大化">□</button>
         <button type="button" data-window-control="close" aria-label="关闭">×</button>
       </div>
     </header>
@@ -34,7 +34,7 @@
     <nav class="pal-sidebar" aria-label="伙伴">
       <div class="brand"><span class="mark" aria-hidden="true">M</span><h1>MC-Pal</h1></div>
       <button id="new-pal" type="button">创建伙伴</button>
-      <ul id="pal-list"></ul>
+      <ul id="pal-list" class="pal-list"></ul>
       <p id="pal-list-error" role="alert"></p>
     </nav>
     <main>
@@ -121,7 +121,7 @@
         <form id="composer">
           <label for="input">输入消息</label>
           <div class="composer-row">
-            <input id="input" name="text" maxlength="500" required placeholder="附近有谁？" autocomplete="off">
+            <textarea id="input" name="text" rows="2" maxlength="500" required placeholder="附近有谁？"></textarea>
             <button class="primary" type="submit">发送</button>
             <button id="voice" type="button">注入语音文本</button>
           </div>
@@ -304,7 +304,7 @@
               <input id="minecraft-host" name="host" value="localhost" maxlength="255" required>
             </label>
             <label>端口
-              <input id="minecraft-port" name="port" inputmode="numeric" pattern="[0-9]{1,5}" value="25565" required>
+              <input id="minecraft-port" name="port" type="number" min="1" max="65535" step="1" value="25565" required>
             </label>
             <label>认证方式
               <select id="minecraft-auth" name="auth">

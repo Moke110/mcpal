@@ -24,22 +24,11 @@
 }
 #minecraft-settings label { font-size: .88rem; font-weight: 600; }
 #minecraft-settings label:not(.live-offline) { display: grid; gap: 4px; }
-#minecraft-settings input:not([type="checkbox"]), #minecraft-workspace select {
-  border: 1px solid #cbd5c8;
-  border-radius: 6px;
-  background: #fff;
-  color: #1d3227;
-  font: inherit;
-  padding: 7px 8px;
-  min-width: 0;
-}
 #minecraft-settings .live-note, #minecraft-settings .live-offline { grid-column: 1 / -1; }
 #minecraft-connect { justify-self: start; }
-#minecraft-workspace button:disabled { cursor: default; opacity: .45; }
 #minecraft-workspace dd { overflow-wrap: anywhere; }
-.live-note, #live-reason { margin-top: 7px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.live-note { margin-top: 7px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .live-note { color: #506554; font-size: .88rem; }
-#live-reason { color: #873926; }
 #minecraft-follow-form { margin-top: 12px; }
 .live-action-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
 .live-action-row select { flex: 1 1 90px; }
@@ -56,7 +45,6 @@
 
 #world-view[hidden] { display: none; }
 #world-view-toggle[aria-pressed="true"] { background: #e4eddd; border-color: #68816c; }
-#world-view-status, #skin-preview-status { margin: 6px 0; color: #506554; font-size: .88rem; }
 
 .identity-preview {
   display: grid;
@@ -76,10 +64,4 @@
 .identity-preview label { display: block; margin: 5px 0; font-size: .88rem; font-weight: 600; }
 .identity-preview input { max-width: 100%; }
 .identity-preview input[type="file"] { font: inherit; font-size: .82rem; }
-#desktop-nickname {
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid #cbd5c8;
-  border-radius: 6px;
-  font: inherit;
-}
+#desktop-nickname { width: 100%; }

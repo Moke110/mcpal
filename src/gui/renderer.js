@@ -1,3 +1,5 @@
+import { bindChatComposer } from "./chat-composer.js";
+
 const bridge = window.companion;
 const $ = (id) => document.getElementById(id);
 const conversation = $("conversation");
@@ -153,6 +155,7 @@ async function submit(source) {
   }
 }
 
+bindChatComposer(input, composer);
 composer.addEventListener("submit", (event) => {
   event.preventDefault();
   void submit("gui");
