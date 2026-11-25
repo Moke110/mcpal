@@ -1,10 +1,14 @@
 import { resolve } from 'node:path'
 import mineflayer from 'mineflayer'
+import prismarineChat from 'prismarine-chat'
 import type { Config } from './config.ts'
 import { createControls, type TrustedMinecraftChat } from './controls.ts'
 import type { MinecraftIO } from './io.ts'
 import { readBlock, readObservation } from './perception.ts'
 import { readWorldView } from './world-view.ts'
+
+// The CommonJS package exports its loader directly.
+const loadChatMessage = prismarineChat as unknown as typeof prismarineChat.default
 
 type Report = (event: string, fields?: Record<string, unknown>) => void
 
@@ -137,7 +141,15 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
     controls?.cancel('Player died')
     report('death')
   })
-  bot.on('kicked', (reason, loggedIn) => report('kicked', { reason, loggedIn }))
+  bot.on('kicked', (reason, loggedIn) => {
+    let message = typeof reason === 'string' ? reason : ''
+    try {
+      message = loadChatMessage(bot.version).fromNotch(reason).toString().trim() || message
+    } catch {
+      // A malformed disconnect message must not interrupt connection cleanup.
+    }
+    report('kicked', { reason, loggedIn, message: message || 'Minecraft server closed the connection' })
+  })
   bot.on('error', (error) => {
     if (stopping || ended) return
     report('error', { message: error.message })

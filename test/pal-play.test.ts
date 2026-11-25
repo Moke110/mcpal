@@ -41,6 +41,16 @@ test("a saved offline Pal joins and ends the session on request or server discon
     return peer;
   }
 
+  const rejected = Promise.withResolvers<ReturnType<LiveMinecraftSession["snapshot"]>>();
+  onPhase = (state) => {
+    if (!state.active && state.phase === "failed") rejected.resolve(state);
+  };
+  const beforeSpawn = once(server, "playerJoin");
+  live.open(settings, true);
+  const [rejectedPeer] = await beforeSpawn as [protocol.ServerClient];
+  rejectedPeer.end("测试服务器拒绝入场");
+  assert.equal((await rejected.promise).reason, "测试服务器拒绝入场");
+
   const manual = await join();
   const closed = once(manual, "end");
   const ended = Promise.withResolvers<ReturnType<LiveMinecraftSession["snapshot"]>>();
@@ -59,6 +69,6 @@ test("a saved offline Pal joins and ends the session on request or server discon
   kicked.end("测试服务器关闭");
   const state = await lost.promise;
   assert.equal(state.active, false);
-  assert.ok(state.reason);
+  assert.equal(state.reason, "测试服务器关闭");
 });
 
