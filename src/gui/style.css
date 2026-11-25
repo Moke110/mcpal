@@ -175,3 +175,17 @@ dd { margin: 0; text-align: right; font-weight: 600; }
 .pal-chat-text-input section:has(#asr-title),
 .pal-chat-text-output section:has(#speech-title) { display: none; }
 .pal-chat-mode:not(.pal-chat-text-input) #composer { display: none; }
+
+#pal-home {
+  margin: 22px clamp(16px, 4vw, 48px);
+  min-height: max(320px, calc(100dvh - 119px));
+  display: grid;
+  place-items: center;
+}
+.home-guide { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.home-guide p { color: #506554; }
+
+.pal-chat-mode { grid-template-columns: minmax(0, 1fr); }
+#session-settings > summary { cursor: pointer; }
+.session-settings-panels { display: grid; gap: 14px; margin-top: 10px; }
+.pal-chat-text-input [aria-labelledby="open-mic-title"] { display: none; }

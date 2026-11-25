@@ -19,13 +19,11 @@ function leaveChatView() {
   title.textContent = "对话";
 }
 
-for (const id of ["new-pal", "show-simulation", "show-minecraft"]) {
-  get(id).addEventListener("click", () => {
-    selected = null;
-    form.hidden = true;
-    leaveChatView();
-  });
-}
+get("new-pal").addEventListener("click", () => {
+  selected = null;
+  form.hidden = true;
+  leaveChatView();
+});
 
 operation.addEventListener("pal-operation", ({ detail }) => {
   selected = detail.operation === "chat" ? detail.profile : null;
@@ -53,8 +51,12 @@ form.addEventListener("submit", async (event) => {
   try {
     await window.palProfiles.startChat(profile.id);
     if (profile !== selected) return;
-    get("show-simulation").click();
-    title.textContent = "与 " + profile.nickname + " 聊天";
+    operation.hidden = true;
+    get("desktop-workspaces").hidden = false;
+    get("minecraft-workspace").hidden = true;
+    workspace.hidden = false;
+    get("session-settings").open = false;
+    title.textContent = "与" + profile.nickname + "聊天";
     workspace.classList.add("pal-chat-mode");
     workspace.classList.toggle("pal-chat-text-input", !microphone);
     workspace.classList.toggle("pal-chat-text-output", !speech);

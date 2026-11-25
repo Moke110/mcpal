@@ -221,7 +221,8 @@ record.addEventListener("keydown", (event) => {
 });
 record.addEventListener("keyup", (event) => { if (press === event.key) release(); });
 record.addEventListener("blur", () => { if (typeof press === "string") discard(); });
-find("show-minecraft").addEventListener("click", () => discard());
+find("new-pal").addEventListener("click", () => discard());
+find("pal-operation").addEventListener("pal-operation", () => discard());
 window.addEventListener("blur", () => { if (press !== null) discard(); });
 window.addEventListener("pagehide", () => discard());
 navigator.mediaDevices?.addEventListener("devicechange", () => void refreshDevices());

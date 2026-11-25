@@ -20,13 +20,6 @@
   let canFollow = false;
   let shownChat = [];
 
-  function showMode(live) {
-    el("simulation-workspace").hidden = live;
-    el("minecraft-workspace").hidden = !live;
-    el("show-simulation").setAttribute("aria-pressed", String(!live));
-    el("show-minecraft").setAttribute("aria-pressed", String(live));
-  }
-
   function optionalText(id, value) {
     el(id).textContent = value ?? "";
     el(id).hidden = !value;
@@ -92,8 +85,6 @@
     optionalText("live-reason", "无法与 Minecraft 会话通信。请重新打开 MC-Pal。");
   }
 
-  el("show-simulation").addEventListener("click", () => showMode(false));
-  el("show-minecraft").addEventListener("click", () => showMode(true));
   const showOfflineControl = () => { el("minecraft-offline-control").hidden = auth.value !== "offline"; };
   auth.addEventListener("change", showOfflineControl);
   showOfflineControl();
