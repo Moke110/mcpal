@@ -5,6 +5,7 @@ const operationPanel = el("pal-operation");
 const form = el("pal-play-form");
 const status = el("pal-play-status");
 const end = el("pal-play-end");
+const apiConsent = el("pal-play-api-consent");
 const submit = form.querySelector('[type="submit"]');
 let profile;
 let currentPlay;
@@ -31,6 +32,11 @@ operationPanel.addEventListener("pal-operation", ({ detail }) => {
   if (!selected) return;
   profile = currentPlay?.profile ?? detail.profile;
   el("pal-operation-name").textContent = profile.nickname;
+  const api = profile.backend === "api";
+  apiConsent.hidden = !api;
+  apiConsent.querySelector("input").required = api;
+  apiConsent.querySelector("input").disabled = !api;
+  if (!currentPlay) apiConsent.querySelector("input").checked = false;
   if (currentPlay && !end.hidden) showPlayWorkspace();
   if (!currentPlay) status.textContent = "";
 });
@@ -55,6 +61,7 @@ form.addEventListener("submit", async (event) => {
       host: fields.get("host"),
       port: fields.get("port"),
       offlineControl: fields.has("offlineControl"),
+      allowApi: fields.has("allowApi"),
     });
   } catch (error) {
     currentPlay = undefined;
@@ -79,8 +86,11 @@ bridge.onState(({ phase, reason, active }) => {
   if (!currentPlay) return;
   if (phase === "ready") {
     if (end.hidden) {
-      setRoute("asr-enable", currentPlay.input === "voice");
-      setRoute("speech-enable", currentPlay.output === "voice");
+      currentPlay.routes = [
+        { id: "asr-enable", previous: el("asr-enable").checked, enabled: currentPlay.input === "voice" },
+        { id: "speech-enable", previous: el("speech-enable").checked, enabled: currentPlay.output === "voice" },
+      ];
+      for (const { id, enabled } of currentPlay.routes) setRoute(id, enabled);
     }
     status.textContent = "陪玩中";
     end.hidden = false;
@@ -95,6 +105,9 @@ bridge.onState(({ phase, reason, active }) => {
       ? `连接失败：${reason ?? "请检查地址、端口和离线登录设置。"}`
       : reason ? `陪玩已结束：${reason}` : "陪玩已结束";
     if (selected && !operationPanel.hidden) el("desktop-workspaces").hidden = true;
+    for (const { id, previous, enabled } of currentPlay.routes ?? []) {
+      if (el(id).checked === enabled) setRoute(id, previous);
+    }
     currentPlay = undefined;
     end.hidden = true;
     form.hidden = false;

@@ -49,7 +49,7 @@
             </select>
           </label>
           <label>语音音色
-            <select name="voice"><option value="default">系统默认</option></select>
+            <select id="pal-voice" name="voice"><option value="default">系统默认</option></select>
           </label>
           <label>游戏登录方式
             <select name="login" required>
@@ -66,6 +66,7 @@
                 <option value="slim">纤细</option>
               </select>
             </label>
+            <p class="live-note">离线皮肤偏好会保存。服务器中显示的皮肤由服务器和客户端决定。</p>
           </fieldset>
           <button class="primary" type="submit">保存伙伴</button>
           <p id="pal-error" role="alert"></p>
@@ -81,6 +82,9 @@
             <label class="control">输入 <select name="input"><option value="text">键盘</option><option value="voice">麦克风</option></select></label>
             <label class="control">输出 <select name="output"><option value="text">桌面文字</option><option value="voice">桌面文字及语音</option></select></label>
             <label class="control"><input name="offlineControl" type="checkbox"> 允许在隔离的离线世界执行游戏操作</label>
+            <label id="pal-play-api-consent" class="control" hidden>
+              <input name="allowApi" type="checkbox" disabled> 同意向配置的 API 服务发送游戏观测与对话
+            </label>
             <button class="primary" type="submit">确认</button>
           </form>
           <p id="pal-play-status" role="status"></p>
@@ -319,6 +323,7 @@
             </label>
             <p class="live-note">连接局域网世界时，请填写房主的地址和开放世界时显示的端口。</p>
             <button id="minecraft-connect" class="primary" type="submit">连接</button>
+            <p class="live-note">离线皮肤偏好会保存。服务器中显示的皮肤由服务器和客户端决定。</p>
           </fieldset>
         </form>
         <button id="minecraft-disconnect" type="button" disabled>断开</button>

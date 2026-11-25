@@ -15,7 +15,7 @@ import { scenarios, SimulationSession } from "./sim-session.ts";
 import { SpeechOutput } from "./speech-output.ts";
 import { VoiceInput } from "./voice-input.ts";
 import { openAsrFixture, openVosk } from "./vosk-asr.ts";
-import { synthesizeSpeechFixture, synthesizeWindowsSpeech } from "./windows-speech.ts";
+import { listWindowsVoices, synthesizeSpeechFixture, synthesizeWindowsSpeech } from "./windows-speech.ts";
 
 const dataPath = process.env.MCPAL_DESKTOP_DATA;
 if (dataPath) app.setPath("userData", dataPath);
@@ -62,8 +62,9 @@ async function startDesktop(): Promise<void> {
     ? openLocalFixture(publish, localFixture === "over-budget")
     : createLocalBackend(process.env, publish);
   const fixture = process.env.MCPAL_TTS_FIXTURE === "1";
+  let palVoice = "default";
   const speech = new SpeechOutput({
-    synthesize: fixture ? synthesizeSpeechFixture : synthesizeWindowsSpeech,
+    synthesize: fixture ? synthesizeSpeechFixture : (text, signal) => synthesizeWindowsSpeech(text, signal, palVoice),
     publish: (event) => {
       if (!window.isDestroyed()) window.webContents.send("desktop:speech-event", event);
     },
@@ -125,12 +126,14 @@ async function startDesktop(): Promise<void> {
 
   const profiles = new PalProfiles(app.getPath("userData"));
   handle("pal:list", () => profiles.list());
+  handle("pal:voices", () => listWindowsVoices());
   handle("pal:create", (input) => profiles.create(input));
   handle("pal:start-chat", async (id) => {
     const profile = (await profiles.list()).find((pal) => pal.id === id);
     if (!profile) throw new Error("找不到所选伙伴");
     if (live.snapshot().active) throw new Error("请先结束 Minecraft 陪玩");
     session.startDesktopChat(profile.backend === "sim" ? "simulated" : profile.backend);
+    palVoice = profile.voice;
     if (profile.backend === "local") void session.startLocal();
   });
   handle("desktop:window-control", (action) => {
@@ -228,7 +231,13 @@ async function startDesktop(): Promise<void> {
   handle("desktop:asr-device-error", (id) => {
     if (typeof id === "number") voice.fail(id, "无法采集麦克风，请检查设备和 Windows 权限。");
   });
+  let palPlayActive = false;
   const live = new LiveMinecraftSession((state) => {
+    if (palPlayActive && (state.phase === "disconnecting" || state.phase === "disconnected" || state.phase === "failed")) {
+      palPlayActive = false;
+      palVoice = "default";
+      session.endPalPlay();
+    }
     const observation = state.observation;
     session.updateLiveObservation(observation ? {
       place: [observation.dimension ?? "维度未知",
@@ -251,7 +260,12 @@ async function startDesktop(): Promise<void> {
     if (!profile) throw new Error("找不到已保存的伙伴。");
     if (live.snapshot().active) throw new Error("请先断开当前 Minecraft 连接。");
     const settings = offlinePlaySettings(profile, address);
-    session.setBackend(profile.backend === "sim" ? "simulated" : profile.backend);
+    const allowApi = typeof address === "object" && address !== null &&
+      "allowApi" in address && address.allowApi === true;
+    session.startPalPlay(profile.backend === "sim" ? "simulated" : profile.backend, allowApi);
+    palPlayActive = true;
+    palVoice = profile.voice;
+    if (profile.backend === "local") void session.startLocal();
     live.open(settings, !settings.offlineControl);
   });
   handle("minecraft:disconnect", () => live.disconnect());

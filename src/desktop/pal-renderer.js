@@ -81,3 +81,10 @@ void profiles.list().then((saved) => {
 }).catch((error) => {
   listError.textContent = error.message;
 });
+
+void profiles.voices().then((voices) => {
+  const voice = document.querySelector("#pal-voice");
+  for (const name of voices) voice.append(new Option(name, name));
+}).catch((error) => {
+  listError.textContent = error.message;
+});

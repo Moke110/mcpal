@@ -200,3 +200,30 @@ test("starting desktop chat selects the Pal model and opens a clean conversation
   assert.deepEqual(liveRoutes, []);
   session.dispose();
 });
+
+test("Pal play desktop inputs use live observations and require consent for the API model", async () => {
+  const { clock, advance } = fakeClock();
+  const observation = { place: "受控世界", health: 13, players: [] };
+  const requests: ModelInput[] = [];
+  const session = new SimulationSession(() => {}, clock, {
+    api: {
+      origin: "http://127.0.0.1",
+      check: async () => ({ kind: "completed" }),
+      generate: async (input) => {
+        requests.push(input);
+        return { kind: "completed", output: { reply: "API 回复", intent: { kind: "none" } } };
+      },
+    },
+  });
+  assert.throws(() => session.startPalPlay("api", false), /授权/u);
+  session.startPalPlay("api", true);
+  session.updateLiveObservation(observation, { phase: "idle", target: null, result: null });
+  session.submitText("生命值", "gui");
+  advance(400);
+  await Promise.resolve();
+  advance(850);
+  assert.deepEqual(requests, [{ inputs: ["生命值"], observation }]);
+  session.endPalPlay();
+  assert.equal(session.snapshot().api.live, false);
+  session.dispose();
+});

@@ -1,9 +1,10 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { stat } from "node:fs/promises";
 import { createServer } from "node:net";
+import { promisify } from "node:util";
 import { basename, isAbsolute } from "node:path";
 import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
@@ -27,6 +28,41 @@ export function createLocalBackend(env: NodeJS.ProcessEnv, publish: () => void):
   }, (signal) => launch(executable, weights, context, layers, signal), publish);
 }
 
+const run = promisify(execFile);
+
+export function localReasoningOptions(help: string): string[] {
+  if (/^\s*--reasoning(?=[ \t=]|$)/mu.test(help)) return ["--reasoning", "off"];
+  if (/^\s*--reasoning-budget(?=[ \t=]|$)/mu.test(help)) return ["--reasoning-budget", "0"];
+  throw new Error("当前 llama-server 版本无法禁用推理模式。");
+}
+
+async function reasoningOptions(executable: string, signal: AbortSignal): Promise<string[]> {
+  let help: string;
+  try {
+    const { stdout, stderr } = await run(executable, ["--help"], { windowsHide: true, timeout: 10_000, signal });
+    help = stdout + "\n" + stderr;
+  } catch {
+    signal.throwIfAborted();
+    throw new Error("无法读取 llama-server 支持的启动参数。");
+  }
+  return localReasoningOptions(help);
+}
+
+export async function localServerHealthy(port: number, key: string, signal: AbortSignal): Promise<boolean> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/health`, {
+      headers: { Authorization: `Bearer ${key}` },
+      redirect: "error",
+      signal,
+    });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    signal.throwIfAborted();
+    return false;
+  }
+}
+
 async function launch(
   executable: string, weights: string, context: number, layers: number, signal: AbortSignal,
 ): Promise<LocalRuntime> {
@@ -35,6 +71,7 @@ async function launch(
   } catch {
     throw new Error("找不到配置的 llama-server.exe 或 GGUF 文件");
   }
+  const reasoning = await reasoningOptions(executable, signal);
   const port = await freeLoopbackPort();
   signal.throwIfAborted();
   const key = randomBytes(32).toString("hex");
@@ -44,7 +81,7 @@ async function launch(
   const server = spawn(executable, [
     "--model", weights, "--alias", "mcpal-local", "--host", "127.0.0.1", "--port", String(port),
     "--api-key", key, "--ctx-size", String(context), "--gpu-layers", String(layers),
-    "--parallel", "1", "--device", "CUDA0", "--no-warmup", "--reasoning", "off", "--offline",
+    "--parallel", "1", "--device", "CUDA0", "--no-warmup", ...reasoning, "--offline",
   ], { shell: false, stdio: "ignore", windowsHide: true });
   const done = new Promise<void>((resolve) => server.once("close", () => resolve()));
   let memory: ReturnType<typeof openMemorySampler> | undefined;
@@ -61,7 +98,8 @@ async function launch(
       while (true) {
         startup.throwIfAborted();
         if (server.exitCode !== null || server.signalCode !== null) throw new Error("llama-server 在启动期间退出");
-        if ((await client.check(startup)).kind === "completed") return;
+        if (await localServerHealthy(port, key, startup) &&
+          (await client.check(startup)).kind === "completed") return;
         await delay(150, undefined, { signal: startup });
       }
     },

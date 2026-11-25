@@ -6,7 +6,7 @@ export interface PalProfile {
   id: string;
   nickname: string;
   backend: "sim" | "api" | "local";
-  voice: "default";
+  voice: string;
   login: "offline";
   skin: "classic" | "slim";
 }
@@ -35,7 +35,7 @@ export class PalProfiles {
       const { nickname, backend, voice, login, skin } = input as Record<string, unknown>;
       if (typeof nickname !== "string" || !/^[a-zA-Z0-9_]{1,16}$/.test(nickname) ||
           (backend !== "sim" && backend !== "api" && backend !== "local") ||
-          voice !== "default" || login !== "offline" || (skin !== "classic" && skin !== "slim")) {
+          typeof voice !== "string" || !voice.trim() || voice.length > 200 || login !== "offline" || (skin !== "classic" && skin !== "slim")) {
         throw new Error("伙伴设置无效");
       }
       const profile: PalProfile = { id: randomUUID(), nickname, backend, voice, login, skin };

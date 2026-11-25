@@ -9,7 +9,7 @@ test("offline Pal settings remain available when the desktop restarts", async ()
   const directory = await mkdtemp(join("tmp", "pal-profiles-"));
   try {
     const profiles = new PalProfiles(directory);
-    const input = { nickname: "Alex", backend: "local", voice: "default", login: "offline", skin: "slim" };
+    const input = { nickname: "Alex", backend: "local", voice: "Microsoft Huihui Desktop", login: "offline", skin: "slim" };
     deepEqual(await profiles.list(), []);
     const created = await profiles.create(input);
     deepEqual(await new PalProfiles(directory).list(), [created]);

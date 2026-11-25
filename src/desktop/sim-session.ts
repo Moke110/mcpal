@@ -98,6 +98,7 @@ export class SimulationSession {
 
   readonly #options: SessionOptions;
   #liveObservation: Observation | null = null;
+  #palPlay = false;
   #apiGeneration = 0;
   #disposed = false;
 
@@ -132,7 +133,7 @@ export class SimulationSession {
 
   snapshot(): SimulationState {
     const state = structuredClone(this.#state);
-    if (state.api.live) state.observation = structuredClone(this.#liveObservation ?? { place: "实机观测未知", players: [] });
+    if (state.api.live || this.#palPlay) state.observation = structuredClone(this.#liveObservation ?? { place: "实机观测未知", players: [] });
     return { ...state, window: this.#scheduler.snapshot(), local: this.#options.local?.snapshot() ?? null };
   }
 
@@ -168,6 +169,7 @@ export class SimulationSession {
   }
 
   startDesktopChat(backend: SimulationState["backend"]): void {
+    this.#requireBackend(backend);
     this.#state.messages = [];
     if (backend === this.#state.backend) {
       this.#state.api.live = false;
@@ -177,6 +179,27 @@ export class SimulationSession {
     } else {
       this.setBackend(backend);
     }
+  }
+
+  #requireBackend(backend: SimulationState["backend"]): void {
+    if (backend === "api" && !this.#options.api) throw new Error("请先配置 API 模型。");
+    if (backend === "local" && !this.#options.local) throw new Error("请先配置本地模型。");
+  }
+
+  startPalPlay(backend: SimulationState["backend"], allowApi: boolean): void {
+    if (backend === "api" && !allowApi) throw new Error("使用 API 模型陪玩需要授权发送游戏观测和对话。");
+    this.startDesktopChat(backend);
+    this.#palPlay = true;
+    this.setApiLive(backend === "api");
+    this.#emit();
+  }
+
+  endPalPlay(): void {
+    if (!this.#palPlay) return;
+    this.#palPlay = false;
+    this.#state.api.live = false;
+    this.switchSession();
+    this.#emit();
   }
 
   setApiLive(live: boolean): void {
@@ -240,7 +263,7 @@ export class SimulationSession {
   }
 
   submitText(text: string, source: Exclude<Source, "minecraft">): number | null {
-    const live = this.#state.api.live;
+    const live = this.#palPlay || this.#state.api.live;
     return this.#submit(text, source, live, live ? this.#options.minecraftReplyRoute?.() ?? null : null);
   }
 
