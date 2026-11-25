@@ -1,5 +1,3 @@
-import { username as playerName } from './actions.ts'
-
 export interface Config {
   host: string
   port: number
@@ -7,9 +5,7 @@ export interface Config {
   auth: 'microsoft' | 'offline'
   version: string | false
   snapshotIntervalMs: number
-  control?: {
-    players: ReadonlySet<string>
-  }
+  control?: true
 }
 
 export function readConfig(env: NodeJS.ProcessEnv): Config {
@@ -29,8 +25,6 @@ export function readConfig(env: NodeJS.ProcessEnv): Config {
   }
 
   const version = env.MC_VERSION?.trim() || 'auto'
-  const players = new Set((env.MC_AUTHORIZED_PLAYERS ?? '').split(',').map(name => name.trim())
-    .filter(Boolean).map(name => playerName(name).toLowerCase()))
   const controlEnabled = enabled(env.MC_CONTROL, 'MC_CONTROL')
   if (controlEnabled && auth === 'offline' && !enabled(env.MC_ALLOW_OFFLINE_CONTROL, 'MC_ALLOW_OFFLINE_CONTROL')) {
     throw new Error('Offline control requires MC_ALLOW_OFFLINE_CONTROL=true in an isolated world')
@@ -38,7 +32,7 @@ export function readConfig(env: NodeJS.ProcessEnv): Config {
   return {
     host, port, username, auth, version: version === 'auto' ? false : version,
     snapshotIntervalMs: integer(env.MC_SNAPSHOT_INTERVAL_MS ?? '5000', 'MC_SNAPSHOT_INTERVAL_MS', 1000, 60000),
-    ...(controlEnabled ? { control: { players } } : {}),
+    ...(controlEnabled ? { control: true as const } : {}),
   }
 }
 

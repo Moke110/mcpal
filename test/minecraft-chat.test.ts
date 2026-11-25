@@ -7,7 +7,7 @@ import minecraftData from "minecraft-data";
 import protocol from "minecraft-protocol";
 import { connect } from "../src/client.ts";
 
-test("desktop chat uses protocol identity and sends one sanitized public message while ready", { timeout: 10_000 }, async (t) => {
+for (const control of [true, false]) test(`player chat and system observations with controls ${control ? "enabled" : "disabled"}`, { timeout: 10_000 }, async (t) => {
   const version = "26.1";
   const data = minecraftData(version);
   const host = "127.0.0.1";
@@ -22,9 +22,9 @@ test("desktop chat uses protocol identity and sends one sanitized public message
   const messages: unknown[] = [];
   const client = connect({
     host, port: address.port, username: "Companion", auth: "offline", version, snapshotIntervalMs: 1000,
-    control: { players: new Set(["owner", "companion"]) },
+    ...(control ? { control: true as const } : {}),
   }, (event) => { if (event === "snapshot") ready.resolve(); }, () => assert.fail("unexpected authentication"), {
-    onTrustedChat: (message) => { messages.push(message); accepted.resolve(); },
+    onPlayerChat: (message) => { messages.push(message); if (message.player === "Owner") accepted.resolve(); },
   });
   t.after(() => client.close());
   assert.equal(client.chat.send("Too early"), false);
@@ -41,6 +41,9 @@ test("desktop chat uses protocol identity and sends one sanitized public message
   ] });
   peer.write("position", { x: 3.5, y: 64, z: 5.5, dx: 0, dy: 0, dz: 0, yaw: 0, pitch: 0, flags: 0, teleportId: 1 });
   await ready.promise;
+  for (const notice of ["Server announcement", "Bystander fell from a high place"]) {
+    peer.write("system_chat", { content: { type: "string", value: notice }, isActionBar: false });
+  }
   let index = 0;
   for (const senderUuid of [other, peer.uuid, owner]) {
     peer.write("player_chat", {
@@ -50,12 +53,17 @@ test("desktop chat uses protocol identity and sends one sanitized public message
     });
   }
   await accepted.promise;
-  assert.deepEqual(messages, [{ player: "Owner", text: "!pal 生命值" }]);
+  assert.deepEqual(messages, [{ player: "Bystander", text: "!pal 生命值" }, { player: "Owner", text: "!pal 生命值" }]);
 
-  const sent = once(peer, "chat_message");
-  assert.equal(client.chat.send("/me hello\nnext line"), true);
-  const [packet] = await sent;
-  assert.equal(packet.message, "[Companion] /me hello next line");
+  assert.deepEqual(client.io.read()?.systemMessages, ["Server announcement", "Bystander fell from a high place"]);
+  if (control) {
+    const sent = once(peer, "chat_message");
+    assert.equal(client.chat.send("/me hello\nnext line"), true);
+    const [packet] = await sent;
+    assert.equal(packet.message, "[Companion] /me hello next line");
+  } else {
+    assert.equal(client.chat.send("Observation only"), false);
+  }
   client.close();
   assert.equal(client.chat.send("Old reply"), false);
   await client.closed;

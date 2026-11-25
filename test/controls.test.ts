@@ -22,9 +22,9 @@ test('parses supported commands and requires an explicit offline control opt-in'
   assert.throws(() => parseCommand('!follow Steve'), /Usage/)
   assert.throws(() => parseCommand('!unknown'), /Unknown/)
   const env = { MC_HOST: '127.0.0.1', MC_PORT: '25565', MC_USERNAME: 'TestBot',
-    MC_AUTH: 'offline', MC_CONTROL: 'true', MC_AUTHORIZED_PLAYERS: 'Owner' }
+    MC_AUTH: 'offline', MC_CONTROL: 'true' }
   assert.throws(() => readConfig(env), /MC_ALLOW_OFFLINE_CONTROL/)
-  assert.ok(readConfig({ ...env, MC_ALLOW_OFFLINE_CONTROL: 'true' }).control?.players.has('owner'))
+  assert.ok(readConfig({ ...env, MC_ALLOW_OFFLINE_CONTROL: 'true' }).control)
 })
 
 test('deduplicates identical work and waits for cancellation cleanup before replacing it', async () => {
@@ -88,7 +88,7 @@ test('state machine exits when the world never becomes ready and the caller canc
   assert.deepEqual(states, ['waiting', 'cancelled'])
 })
 
-test('26.1: authorizes commands and executes movement, block and inventory skills', { timeout: 22_000 }, async (t) => {
+test('26.1: executes terminal commands and tests movement, block and inventory skills', { timeout: 22_000 }, async (t) => {
   const version = '26.1'
   const data = minecraftData(version)
   const host = '127.0.0.1'
@@ -100,7 +100,7 @@ test('26.1: authorizes commands and executes movement, block and inventory skill
   const events: { event: string; fields?: Record<string, unknown> }[] = []
   const client = connect({
     host, port: address.port, username: 'Companion', auth: 'offline', version, snapshotIntervalMs: 1000,
-    control: { players: new Set(['owner']) },
+    control: true,
   }, (event, fields) => events.push({ event, fields }), () => assert.fail('unexpected authentication prompt'))
   t.after(() => client.close())
   assert.equal(client.getStatus(), null)
@@ -156,15 +156,15 @@ test('26.1: authorizes commands and executes movement, block and inventory skill
     })
   }
   chat(bystander, 'Owner', '!follow')
-  chat(owner, 'Owner', '!come')
+  client.command?.('act {"kind":"come","player":"Owner"}')
   await expect(() => events.some(({ event }) => event === 'task_finished'), 'come completion')
-  assert.deepEqual(events.filter(({ event }) => event === 'command_received').map(({ fields }) => fields?.command), ['come'])
+  assert.deepEqual(events.filter(({ event }) => event === 'command_received').map(({ fields }) => fields?.command), ['act'])
   assert.deepEqual(events.find(({ event }) => event === 'task_finished')?.fields?.result,
     { state: 'completed', message: 'Reached destination' })
   assert.ok((client.getStatus()?.position.x ?? 0) >= 9)
-  chat(owner, 'Owner', '!follow')
+  client.command?.('act {"kind":"follow","player":"Owner"}')
   await expect(() => client.getStatus()?.currentTask?.label === 'follow', 'follow started')
-  chat(owner, 'Owner', '!stop')
+  client.command?.('stop')
   await expect(() => events.filter(({ event }) => event === 'task_finished').length === 2, 'follow stopped')
   assert.equal(client.getStatus()?.currentTask, null)
   assert.deepEqual(events.filter(({ event }) => event === 'task_finished').at(-1)?.fields?.result,
