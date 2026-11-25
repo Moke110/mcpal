@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setTimeout as delay, setImmediate as tick } from "node:timers/promises";
-import { LocalBackend } from "../src/desktop/local-backend.ts";
-import { SimulationSession } from "../src/desktop/sim-session.ts";
-import type { ApiResult } from "../src/desktop/api-backend.ts";
+import { LocalBackend } from "../src/processor/local-backend.ts";
+import { SimulationSession } from "../src/processor/sim-session.ts";
+import type { ApiResult } from "../src/processor/api-backend.ts";
 import { fakeClock } from "./fake-clock.ts";
 
 const output: ApiResult = { kind: "completed", output: { reply: "测试", intent: { kind: "none" } } };

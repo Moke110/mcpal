@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { EchoGate } from "../src/desktop/echo-gate.js";
+import { EchoGate } from "../src/gui/echo-gate.js";
 
 test("a delayed copy of speaker output stays out of open-mic speech, while double-talk survives", () => {
   const gate = new EchoGate();

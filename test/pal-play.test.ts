@@ -5,8 +5,8 @@ import { test } from "node:test";
 import minecraftData from "minecraft-data";
 import protocol from "minecraft-protocol";
 import { connect } from "../src/client.ts";
-import { LiveMinecraftSession } from "../src/desktop/live-session.ts";
-import { offlinePlaySettings } from "../src/desktop/pal-play.ts";
+import { LiveMinecraftSession } from "../src/sensor/live-session.ts";
+import { offlinePlaySettings } from "../src/gui/pal-play.ts";
 
 test("a saved offline Pal joins and ends the session on request or server disconnect", { timeout: 12000 }, async (t) => {
   const version = "1.21.11";

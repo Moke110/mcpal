@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
-import { SimulationSession } from "../src/desktop/sim-session.ts";
-import { VoiceInput } from "../src/desktop/voice-input.ts";
-import type { RecognizerEvents } from "../src/desktop/voice-input.ts";
+import { SimulationSession } from "../src/processor/sim-session.ts";
+import { VoiceInput } from "../src/sensor/voice-input.ts";
+import type { RecognizerEvents } from "../src/sensor/voice-input.ts";
 
 test("only a released, current nonempty final enters its reading window once", () => {
   const results: string[] = [];
@@ -151,7 +151,7 @@ test("new valid typed and trusted Minecraft input retire a pending ASR final", (
 });
 
 test("a retired capture's terminal event cannot clear a rapid new key press or its status", async () => {
-  const source = await readFile(new URL("../src/desktop/asr-renderer.js", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/gui/asr-renderer.js", import.meta.url), "utf8");
   function element() {
     const listeners = new Map<string, (event: unknown) => void>();
     const attributes = new Map<string, string>();

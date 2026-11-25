@@ -60,7 +60,7 @@ try {
       const port = (await readFile(join(env.MCPAL_DESKTOP_DATA, "DevToolsActivePort"), "utf8")).split("\n")[0];
       const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(1000) });
       const targets = await response.json();
-      return targets.find(({ url }) => url.endsWith("/resources/app/src/desktop/index.html"));
+      return targets.find(({ url }) => url.endsWith("/resources/app/src/gui/index.html"));
     } catch {
       return null;
     }

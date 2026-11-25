@@ -1,4 +1,4 @@
-import type { WindowClock } from "../src/desktop/read-window.ts";
+import type { WindowClock } from "../src/processor/read-window.ts";
 
 export function fakeClock() {
   let now = 0;

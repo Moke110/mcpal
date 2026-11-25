@@ -1,7 +1,9 @@
+import { createTextSensor } from "../src/sensor/text-sensor.ts";
+import { createStateExpressor } from "../src/expressor/state-expressor.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SimulationSession } from "../src/desktop/sim-session.ts";
-import type { ModelInput } from "../src/desktop/model-protocol.ts";
+import { SimulationSession } from "../src/processor/sim-session.ts";
+import type { ModelInput } from "../src/processor/model-protocol.ts";
 import { fakeClock } from "./fake-clock.ts";
 
 test("Minecraft input and live observations reach the API only with explicit live permission", async () => {
@@ -226,4 +228,24 @@ test("Pal play desktop inputs use live observations and require consent for the 
   session.endPalPlay();
   assert.equal(session.snapshot().api.live, false);
   session.dispose();
+});
+
+test("a desktop chat sends multiline text through a sensor and publishes a simulated Pal reply", () => {
+  const { clock, advance } = fakeClock();
+  const published: ReturnType<SimulationSession["snapshot"]>[] = [];
+  const express = createStateExpressor(() => (state: ReturnType<SimulationSession["snapshot"]>) => published.push(state));
+  const session = new SimulationSession(express, clock);
+  const sense = createTextSensor((text, source) => session.submitText(text, source));
+  try {
+    session.startDesktopChat("simulated");
+    sense("你好\n请回复", "gui");
+    advance(1250);
+    const messages = published.at(-1)?.messages ?? [];
+    assert.equal(messages[0]?.role, "operator");
+    assert.equal(messages[0]?.text, "你好\n请回复");
+    assert.equal(messages.at(-1)?.role, "companion");
+    assert.ok(messages.at(-1)?.text);
+  } finally {
+    session.dispose();
+  }
 });

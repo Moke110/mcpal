@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ReadWindowScheduler, type ReadRequest, type ReadResult } from "../src/desktop/read-window.ts";
+import { ReadWindowScheduler, type ReadRequest, type ReadResult } from "../src/processor/read-window.ts";
 
 import { fakeClock } from "./fake-clock.ts";
 
