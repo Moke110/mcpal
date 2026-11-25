@@ -57,7 +57,7 @@ h2 { font-size: 1rem; }
 .conversation { display: flex; flex-direction: column; height: max(400px, calc(100dvh - 119px)); }
 aside { display: grid; align-content: start; gap: 14px; }
 
-button, input { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button {
   cursor: pointer;
   border: 1px solid #cbd5c8;
@@ -68,11 +68,12 @@ button {
   white-space: nowrap;
 }
 button:hover { background: #ebf1e6; }
+:is(button, input, select, textarea):disabled { cursor: default; opacity: .45; }
 button.primary { color: #fff; background: #28543b; border-color: #28543b; }
 button.primary:hover { background: #1c3c2c; }
 button.danger { color: #873926; border-color: #e4c6b9; }
 button.danger:hover { background: #f8ebe3; }
-:is(button, input, [tabindex]):focus-visible { outline: 2px solid #3b7953; outline-offset: 2px; }
+:is(button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid #3b7953; outline-offset: 2px; }
 
 #conversation {
   flex: 1;
@@ -98,8 +99,7 @@ button.danger:hover { background: #f8ebe3; }
 .speaker { font-size: .78rem; color: #42604a; font-weight: 600; }
 #composer label { display: block; font-size: .86rem; font-weight: 600; margin-bottom: 5px; }
 .composer-row { flex-wrap: wrap; }
-.composer-row input {
-  flex: 1 1 170px;
+input:not([type="checkbox"], [type="file"]), select, textarea {
   min-width: 0;
   border: 1px solid #cbd5c8;
   border-radius: 6px;
@@ -107,7 +107,17 @@ button.danger:hover { background: #f8ebe3; }
   background: #fff;
   color: #1d3227;
 }
-#error { color: #873926; margin-top: 8px; }
+input[type="checkbox"] { accent-color: #28543b; }
+.composer-row textarea {
+  flex: 1 1 170px;
+  min-height: 3.5rem;
+  max-height: 12rem;
+  resize: vertical;
+}
+.message p { white-space: pre-wrap; }
+p[role="alert"] { color: #873926; margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+p[role="status"] { margin-top: 6px; color: #506554; font-size: .88rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+p[role="alert"]:empty { display: none; }
 .place { margin-top: 10px; font-weight: 600; }
 ul, dl { margin: 9px 0 0; padding: 0; }
 li, dl > div {
@@ -120,20 +130,10 @@ li, dl > div {
 li span, dt { color: #506554; }
 dd { margin: 0; text-align: right; font-weight: 600; }
 .control { margin-top: 12px; font-size: .9rem; cursor: pointer; }
-.control input { accent-color: #28543b; }
-#simulation-scenario {
-  padding: 3px 6px;
-  border: 1px solid #cbd5c8;
-  border-radius: 6px;
-  background: #fcfdf8;
-  color: inherit;
-  font: inherit;
-}
 #simulation-reconnect { margin-top: 10px; }
 #window-counts { max-width: 72%; }
 .speech-controls { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-#speech-device { max-width: 70%; font: inherit; }
-#speech-device-status { margin-top: 4px; font-size: .85rem; color: #506554; }
+#speech-device { max-width: 70%; }
 
 @media (max-width: 730px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }
@@ -155,13 +155,15 @@ dd { margin: 0; text-align: right; font-weight: 600; }
 .pal-layout { display: grid; grid-template-columns: clamp(135px, 18vw, 205px) minmax(0, 1fr); min-height: calc(100vh - 3rem); }
 .pal-sidebar { background: #1c3c2c; color: #f6f7ee; padding: 1rem .75rem; }
 .pal-sidebar .brand { margin-bottom: 1rem; }
-.pal-sidebar ul { padding: 0; list-style: none; }
-.pal-sidebar li { margin-bottom: .5rem; overflow-wrap: anywhere; }
-.pal-sidebar summary { cursor: pointer; padding: .3rem; }
-.pal-sidebar details button { display: block; margin: .25rem 0 .25rem .75rem; }
+.pal-list { padding: 0; list-style: none; }
+.pal-list > li { margin-bottom: .5rem; overflow-wrap: anywhere; }
+.pal-list summary { cursor: pointer; padding: .3rem; }
+.pal-sidebar p[role="alert"] { color: #ffd7c8; }
+.pal-list details button { display: block; margin: .25rem 0 .25rem .75rem; }
 .pal-panel { margin: 1rem; max-width: 580px; }
 .pal-panel form, .pal-panel fieldset:not([hidden]), .pal-panel label { display: grid; gap: .55rem; }
 .pal-panel form { margin-top: 1rem; }
+.pal-panel label:has(> input[type="checkbox"]) { display: flex; align-items: center; }
 .pal-panel button { justify-self: start; }
 
 .pal-panel form[hidden] { display: none; }

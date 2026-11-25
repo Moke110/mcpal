@@ -53,5 +53,8 @@ contextBridge.exposeInMainWorld("palProfiles", {
   voices: () => ipcRenderer.invoke("pal:voices"),
   create: (profile) => ipcRenderer.invoke("pal:create", profile),
   startChat: (id) => ipcRenderer.invoke("pal:start-chat", id),
+  onWindowMaximized: (listener) => {
+    ipcRenderer.on("desktop:window-maximized", (_event, maximized) => listener(maximized));
+  },
   windowControl: (action) => ipcRenderer.invoke("desktop:window-control", action),
 });

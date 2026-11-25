@@ -46,6 +46,12 @@ async function startDesktop(): Promise<void> {
     },
   });
 
+  const publishWindowState = () => {
+    if (!window.isDestroyed()) window.webContents.send("desktop:window-maximized", window.isMaximized());
+  };
+  window.on("maximize", publishWindowState);
+  window.on("unmaximize", publishWindowState);
+
   const page = new URL("../gui/index.html", import.meta.url);
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
