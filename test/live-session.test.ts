@@ -7,15 +7,15 @@ import type { TaskResult } from "../src/tasks.ts";
 
 test("Minecraft replies require opt-in for the originating route and world", async () => {
   let report: Parameters<typeof connect>[1] = () => {};
-  let receive: NonNullable<NonNullable<Parameters<typeof connect>[3]>["onTrustedChat"]> = () => {};
+  let receive: NonNullable<NonNullable<Parameters<typeof connect>[3]>["onPlayerChat"]> = () => {};
   const accepted: { text: string; player: string; replyRoute: number | null }[] = [];
   const sent: string[] = [];
   const end = Promise.withResolvers<{ reason: string; requested: boolean; pendingLogin: boolean }>();
   const read = { nearby: { players: [] } } as unknown as Observation;
   const session = new LiveMinecraftSession(() => {}, (config, listener, _prompt, chat) => {
-    assert.deepEqual([...config.control!.players], ["owner"]);
+    assert.equal(config.control, true);
     report = listener;
-    receive = chat!.onTrustedChat!;
+    receive = chat!.onPlayerChat!;
     return {
       closed: end.promise,
       close: () => end.resolve({ reason: "shutdown", requested: true, pendingLogin: false }),
@@ -25,14 +25,14 @@ test("Minecraft replies require opt-in for the originating route and world", asy
   }, (message) => accepted.push(message));
   session.open({
     host: "127.0.0.1", port: "25565", auth: "offline", username: "Companion",
-    offlineControl: true, authorizedPlayers: "Owner",
+    offlineControl: true,
   });
   const ready = () => report("snapshot", { observation: read });
   ready();
   const message = { text: "!pal 生命值", player: "Owner" };
   receive({ ...message, text: "聊天闲谈" });
   receive(message);
-  assert.deepEqual(accepted, [{ text: "生命值", player: "Owner", replyRoute: null }]);
+  assert.deepEqual(accepted, [{ text: "聊天闲谈", player: "Owner", replyRoute: null }, { ...message, replyRoute: null }]);
   session.setChatRoute(true);
   assert.equal(session.sendChatReply(accepted[0]!.replyRoute, "Before opt-in"), false);
   receive(message);
@@ -44,7 +44,7 @@ test("Minecraft replies require opt-in for the originating route and world", asy
   const nextWorld = accepted.at(-1)!.replyRoute;
   report("world_unavailable");
   receive(message);
-  assert.equal(accepted.length, 3);
+  assert.equal(accepted.length, 4);
   ready();
   assert.equal(session.sendChatReply(nextWorld, "Previous world"), false);
   receive(message);
