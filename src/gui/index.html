@@ -31,6 +31,12 @@
       <div class="brand"><span class="mark" aria-hidden="true">M</span><h1>MC-Pal</h1></div>
       <button id="new-pal" type="button">创建伙伴</button>
       <ul id="pal-list" class="pal-list"></ul>
+      <details id="sensor-sources" hidden>
+        <summary>信息源 · <span id="sensor-profile"></span></summary>
+        <label><input type="checkbox" data-source="gui">GUI 文本</label>
+        <label><input type="checkbox" data-source="minecraft">Minecraft 聊天</label>
+      </details>
+      <button id="sensor-debug" type="button">感受器消息</button>
       <p id="pal-list-error" role="alert"></p>
     </nav>
     <main>

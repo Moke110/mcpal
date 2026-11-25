@@ -11,6 +11,32 @@ const listError = document.querySelector("#pal-list-error");
 const operationTitle = document.querySelector("#pal-operation-title");
 const operationName = document.querySelector("#pal-operation-name");
 
+let sourceProfile;
+const sourceMenu = document.getElementById("sensor-sources");
+operationPanel.addEventListener("pal-operation", ({ detail }) => {
+  sourceProfile = detail.profile;
+  sourceMenu.hidden = false;
+  document.getElementById("sensor-profile").textContent = sourceProfile.nickname;
+  for (const control of sourceMenu.querySelectorAll("[data-source]")) {
+    control.checked = sourceProfile.sources[control.dataset.source];
+  }
+});
+sourceMenu.addEventListener("change", async ({ target }) => {
+  if (!target.dataset.source || !sourceProfile) return;
+  const profile = sourceProfile;
+  const key = target.dataset.source;
+  const enabled = target.checked;
+  try {
+    profile.sources = await profiles.setTextSource(profile.id, key, enabled);
+  } catch (error) {
+    if (sourceProfile === profile) target.checked = profile.sources[key];
+    listError.textContent = error.message;
+  }
+});
+document.getElementById("sensor-debug").addEventListener("click", () => {
+  void profiles.openSensorDebug().catch(error => { listError.textContent = error.message; });
+});
+
 function showPanel(panel) {
   for (const candidate of [document.getElementById("pal-home"), creation, operationPanel, workspaces]) {
     candidate.hidden = candidate !== panel;
