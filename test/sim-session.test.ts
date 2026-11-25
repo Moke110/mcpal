@@ -174,3 +174,29 @@ test("清理期间的新输入使等待开始的替换任务失效", () => {
   assert.deepEqual(session.snapshot().task, { phase: "stopped", target: null });
   session.dispose();
 });
+
+test("starting desktop chat selects the Pal model and opens a clean conversation without live Minecraft", async () => {
+  const { clock, advance } = fakeClock();
+  const liveRoutes: string[] = [];
+  const session = new SimulationSession(() => {}, clock, {
+    api: {
+      origin: "http://127.0.0.1",
+      check: async () => ({ kind: "completed" }),
+      generate: async () => ({ kind: "completed", output: { reply: "你好，桌面伙伴。", intent: { kind: "none" } } }),
+    },
+    minecraftReply: (_route, text) => { liveRoutes.push(text); return true; },
+  });
+  session.setBackend("api");
+  session.setApiLive(true);
+  session.submitText("上一场会话", "gui");
+  session.startDesktopChat("api");
+  assert.deepEqual(session.snapshot().messages, []);
+  assert.equal(session.snapshot().api.live, false);
+  session.submitText("你好", "gui");
+  advance(400);
+  await Promise.resolve();
+  advance(850);
+  assert.equal(session.snapshot().messages.at(-1)?.text, "你好，桌面伙伴。");
+  assert.deepEqual(liveRoutes, []);
+  session.dispose();
+});

@@ -167,6 +167,18 @@ export class SimulationSession {
     this.#emit();
   }
 
+  startDesktopChat(backend: SimulationState["backend"]): void {
+    this.#state.messages = [];
+    if (backend === this.#state.backend) {
+      this.#state.api.live = false;
+      this.switchSession();
+      this.#observe();
+      this.#emit();
+    } else {
+      this.setBackend(backend);
+    }
+  }
+
   setApiLive(live: boolean): void {
     if (this.#state.backend === "simulated" || live === this.#state.api.live) return;
     this.switchSession();

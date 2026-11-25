@@ -163,3 +163,12 @@ dd { margin: 0; text-align: right; font-weight: 600; }
 .pal-panel form, .pal-panel fieldset:not([hidden]), .pal-panel label { display: grid; gap: .55rem; }
 .pal-panel form { margin-top: 1rem; }
 .pal-panel button { justify-self: start; }
+
+.pal-panel form[hidden] { display: none; }
+.pal-chat-mode #api-live-option,
+.pal-chat-mode label:has(#model-backend),
+.pal-chat-mode #model-backend,
+.pal-chat-mode #voice,
+.pal-chat-text-input section:has(#asr-title),
+.pal-chat-text-output section:has(#speech-title) { display: none; }
+.pal-chat-mode:not(.pal-chat-text-input) #composer { display: none; }
