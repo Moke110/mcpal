@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+const defaultSources = { gui: true, minecraft: true };
+export type TextSources = typeof defaultSources;
+
 export interface PalProfile {
+  sources?: TextSources;
   id: string;
   nickname: string;
   backend: "sim" | "api" | "local";
@@ -22,11 +26,32 @@ export class PalProfiles {
 
   async list(): Promise<PalProfile[]> {
     try {
-      return JSON.parse(await readFile(join(this.directory, "pal-profiles.json"), "utf8")) as PalProfile[];
+      const profiles = JSON.parse(await readFile(join(this.directory, "pal-profiles.json"), "utf8")) as PalProfile[];
+      return profiles.map(profile => ({ ...profile, sources: { ...defaultSources, ...profile.sources } }));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw error;
     }
+  }
+
+  setTextSource(id: string, key: keyof TextSources, enabled: boolean) {
+    const operation = this.#pending.then(async () => {
+      const profiles = await this.list();
+      const profile = profiles.find(item => item.id === id);
+      if (!profile) throw new Error("找不到所选伙伴");
+      profile.sources = { ...defaultSources, ...profile.sources, [key]: enabled };
+      await this.#save(profiles);
+      return profile;
+    });
+    this.#pending = operation.catch(() => {});
+    return operation;
+  }
+
+  async #save(profiles: PalProfile[]) {
+    await mkdir(this.directory, { recursive: true });
+    const pending = join(this.directory, "pal-profiles.pending");
+    await writeFile(pending, JSON.stringify(profiles, null, 2));
+    await rename(pending, join(this.directory, "pal-profiles.json"));
   }
 
   create(input: unknown): Promise<PalProfile> {
@@ -38,12 +63,8 @@ export class PalProfiles {
           typeof voice !== "string" || !voice.trim() || voice.length > 200 || login !== "offline" || (skin !== "classic" && skin !== "slim")) {
         throw new Error("伙伴设置无效");
       }
-      const profile: PalProfile = { id: randomUUID(), nickname, backend, voice, login, skin };
-      const profiles = await this.list();
-      await mkdir(this.directory, { recursive: true });
-      const pending = join(this.directory, "pal-profiles.pending");
-      await writeFile(pending, JSON.stringify([...profiles, profile], null, 2));
-      await rename(pending, join(this.directory, "pal-profiles.json"));
+      const profile: PalProfile = { id: randomUUID(), nickname, backend, voice, login, skin, sources: { ...defaultSources } };
+      await this.#save([...await this.list(), profile]);
       return profile;
     });
     this.#pending = operation.catch(() => {});

@@ -9,7 +9,8 @@ import { createTextSensor } from "../sensor/text-sensor.ts";
 import { connect } from "../client.ts";
 import { createApiBackend } from "../processor/api-backend.ts";
 import { createLocalBackend } from "../processor/llama-server.ts";
-import { PalProfiles } from "../gui/pal-profiles.ts";
+import { PalProfiles, type PalProfile } from "../gui/pal-profiles.ts";
+import { MessageCache } from "../sensor/message-cache.ts";
 import { openLocalFixture } from "../processor/local-fixture.ts";
 import { offlinePlaySettings } from "../gui/pal-play.ts";
 import { LiveMinecraftSession } from "../sensor/live-session.ts";
@@ -134,6 +135,42 @@ async function startDesktop(): Promise<void> {
   }
 
   const profiles = new PalProfiles(app.getPath("userData"));
+  let debugWindow: BrowserWindow | null = null;
+  const cache = new MessageCache(messages => debugWindow?.webContents.send("sensor:messages", messages));
+  let activeProfile: PalProfile | undefined;
+  let appendMessage: ReturnType<MessageCache["begin"]> | undefined;
+
+  function startSensor(profile: PalProfile) {
+    activeProfile = profile;
+    appendMessage = cache.begin();
+  }
+  function endSensor() {
+    activeProfile = undefined;
+    appendMessage = undefined;
+    cache.end();
+  }
+
+  handle("sensor:debug", async () => {
+    if (debugWindow) { debugWindow.show(); return; }
+    const viewer = new BrowserWindow({ parent: window, title: "感受器消息", width: 720, height: 450,
+      backgroundColor: "#161a1c", webPreferences: {
+        preload: fileURLToPath(new URL("../gui/sensor-debug-preload.cjs", import.meta.url)),
+        sandbox: true, contextIsolation: true, nodeIntegration: false,
+      } });
+    debugWindow = viewer;
+    viewer.on("closed", () => { debugWindow = null; });
+    viewer.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    viewer.webContents.on("will-navigate", event => event.preventDefault());
+    await viewer.loadURL(new URL("../gui/sensor-debug.html", import.meta.url).href);
+    if (!viewer.isDestroyed()) viewer.webContents.send("sensor:messages", cache.snapshot());
+  });
+  handle("sensor:text-source", async (id, key, enabled) => {
+    if (typeof id !== "string" || (key !== "gui" && key !== "minecraft") || typeof enabled !== "boolean")
+      throw new TypeError("Invalid text source");
+    const profile = await profiles.setTextSource(id, key, enabled);
+    if (activeProfile?.id === id) activeProfile = profile;
+    return profile.sources;
+  });
   handle("pal:list", () => profiles.list());
   handle("pal:voices", () => listWindowsVoices());
   handle("pal:create", (input) => profiles.create(input));
@@ -142,6 +179,7 @@ async function startDesktop(): Promise<void> {
     if (!profile) throw new Error("找不到所选伙伴");
     if (live.snapshot().active) throw new Error("请先结束 Minecraft 陪玩");
     session.startDesktopChat(profile.backend === "sim" ? "simulated" : profile.backend);
+    startSensor(profile);
     palVoice = profile.voice;
     if (profile.backend === "local") void session.startLocal();
   });
@@ -162,7 +200,13 @@ async function startDesktop(): Promise<void> {
     await mkdir(path, { recursive: true });
     if (await shell.openPath(path)) throw new Error("无法打开本机设置目录");
   });
-  handle("desktop:submit", (input, source) => { senseText(input, source); });
+  handle("desktop:submit", (input, source) => {
+    if (source === "gui" && activeProfile) {
+      if (!activeProfile.sources?.gui) return;
+      if (typeof input === "string") appendMessage?.("GUI", "桌面操作者", input);
+    }
+    senseText(input, source);
+  });
   handle("desktop:observe", () => session.advanceObservation());
   handle("desktop:timeout", (enabled) => {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid timeout setting");
@@ -240,6 +284,7 @@ async function startDesktop(): Promise<void> {
     if (palPlayActive && (state.phase === "disconnecting" || state.phase === "disconnected" || state.phase === "failed")) {
       palPlayActive = false;
       palVoice = "default";
+      endSensor();
       session.endPalPlay();
     }
     const observation = state.observation;
@@ -267,6 +312,7 @@ async function startDesktop(): Promise<void> {
     const allowApi = typeof address === "object" && address !== null &&
       "allowApi" in address && address.allowApi === true;
     session.startPalPlay(profile.backend === "sim" ? "simulated" : profile.backend, allowApi);
+    startSensor(profile);
     palPlayActive = true;
     palVoice = profile.voice;
     if (profile.backend === "local") void session.startLocal();
@@ -283,6 +329,7 @@ async function startDesktop(): Promise<void> {
     live.setChatRoute(enabled);
   });
   window.on("closed", () => {
+    endSensor();
     voice.cancel();
     speech.dispose();
     session.dispose();

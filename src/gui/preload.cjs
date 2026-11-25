@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld("minecraft", {
 
 contextBridge.exposeInMainWorld("palProfiles", {
   list: () => ipcRenderer.invoke("pal:list"),
+  setTextSource: (id, key, enabled) => ipcRenderer.invoke("sensor:text-source", id, key, enabled),
+  openSensorDebug: () => ipcRenderer.invoke("sensor:debug"),
   voices: () => ipcRenderer.invoke("pal:voices"),
   create: (profile) => ipcRenderer.invoke("pal:create", profile),
   startChat: (id) => ipcRenderer.invoke("pal:start-chat", id),
