@@ -16,6 +16,9 @@ test("offline Pal settings remain available when the desktop restarts", async ()
     deepEqual(created.sources, { gui: true, minecraft: true });
     await profiles.setTextSource(created.id, "gui", false);
     deepEqual((await new PalProfiles(directory).list())[0]?.sources, { gui: false, minecraft: true });
+    const microphone = { enabled: true, deviceId: "usb", label: "USB", sender: "小明" };
+    await profiles.setMicrophone(created.id, microphone);
+    deepEqual((await new PalProfiles(directory).list())[0]?.microphone, microphone);
     await rejects(profiles.create({ ...input, login: "online" }));
   } finally {
     await rm(directory, { recursive: true });

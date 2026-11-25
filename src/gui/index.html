@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="./live.css">
     <script type="module" src="./pal-play-renderer.js"></script>
     <script type="module" src="./pal-renderer.js"></script>
+    <script type="module" src="./sensor-microphone.js"></script>
     <script type="module" src="./pal-chat-renderer.js"></script>
     <script type="module" src="./renderer.js"></script>
     <script type="module" src="./speech-renderer.js"></script>
@@ -35,6 +36,13 @@
         <summary>信息源 · <span id="sensor-profile"></span></summary>
         <label><input type="checkbox" data-source="gui">GUI 文本</label>
         <label><input type="checkbox" data-source="minecraft">Minecraft 聊天</label>
+        <fieldset id="sensor-microphone"><legend>麦克风</legend>
+          <button type="button" id="mic-discover">查找麦克风</button>
+          <label>设备 <select id="mic-device"></select></label>
+          <label>发送用户 <input id="mic-user" maxlength="100" value="桌面操作者"></label>
+          <label><input type="checkbox" id="mic-enabled">启用麦克风源</label>
+          <output id="mic-state" role="status">未监听</output>
+        </fieldset>
       </details>
       <button id="sensor-debug" type="button">感受器消息</button>
       <p id="pal-list-error" role="alert"></p>

@@ -21,8 +21,12 @@ while True:
     if not data:
         break
     if recognizer.AcceptWaveform(data):
-        segments.append(json.loads(recognizer.Result()).get("text", ""))
-        emit("partial", segments)
+        sentence = json.loads(recognizer.Result()).get("text", "")
+        if sys.argv[2] == "sentences":
+            emit("segment", [sentence])
+        else:
+            segments.append(sentence)
+            emit("partial", segments)
     else:
         emit("partial", segments + [json.loads(recognizer.PartialResult()).get("partial", "")])
 segments.append(json.loads(recognizer.FinalResult()).get("text", ""))
@@ -37,7 +41,7 @@ export function openVosk(events: RecognizerEvents, env: NodeJS.ProcessEnv): Stre
   const environment = Object.fromEntries(Object.entries(env).filter(([key]) =>
     ["path", "systemroot", "systemdrive", "temp", "tmp", "home", "userprofile", "appdata", "localappdata"]
       .includes(key.toLowerCase())));
-  const child = spawn(env.MCPAL_ASR_PYTHON || "python", ["-u", "-c", worker, model], {
+  const child = spawn(env.MCPAL_ASR_PYTHON || "python", ["-u", "-c", worker, model, events.segment ? "sentences" : "utterance"], {
     windowsHide: true,
     stdio: ["pipe", "pipe", "ignore"],
     env: { ...environment, PYTHONDONTWRITEBYTECODE: "1" },
@@ -55,6 +59,7 @@ export function openVosk(events: RecognizerEvents, env: NodeJS.ProcessEnv): Stre
     try {
       const value = JSON.parse(line) as { kind?: unknown; text?: unknown };
       if (typeof value.text !== "string") return;
+      if (value.kind === "segment") events.segment?.(value.text.trim());
       if (value.kind === "partial") events.partial(value.text.trim());
       if (value.kind === "final") {
         receivedFinal = true;
