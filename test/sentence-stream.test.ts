@@ -18,3 +18,18 @@ test("confirmed sentences arrive during recording and close settles the tail onc
   await Promise.all([stream.finish(), stream.finish()]);
   assert.deepEqual(messages, ["第一句", "第二句", "尾句"]);
 });
+
+test("a stalled recognizer is cancelled and a late final is discarded", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let worker!: RecognizerEvents;
+  let cancelled = 0;
+  const stream = new SentenceStream(events => {
+    worker = events;
+    return { write() {}, end() {}, cancel() { cancelled++; } };
+  }, () => assert.fail("late final"), () => {});
+  const stopped = stream.finish();
+  t.mock.timers.tick(15000);
+  assert.equal(cancelled, 1);
+  await stopped;
+  worker.final("stale");
+});
