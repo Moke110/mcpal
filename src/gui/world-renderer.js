@@ -141,7 +141,7 @@
     if (!enabled) label("第一人称已关闭");
     else if (phase === "positioning") label("等待当前位置和维度");
     else if (phase !== "ready") label("等待 Minecraft 连接就绪");
-    else if (!el("minecraft-workspace").hidden) {
+    else if (!el("minecraft-workspace").closest("[hidden]")) {
       label("等待当前位置的区块");
       void poll(generation);
     }
@@ -160,8 +160,10 @@
     toggle.setAttribute("aria-pressed", String(enabled));
     refresh();
   });
-  el("show-minecraft").addEventListener("click", refresh);
-  el("show-simulation").addEventListener("click", refresh);
+  const visibility = new MutationObserver(refresh);
+  for (const id of ["desktop-workspaces", "minecraft-workspace"]) {
+    visibility.observe(el(id), { attributes: true, attributeFilter: ["hidden"] });
+  }
 
   nickname.value = localStorage.getItem("mcpal-desktop-nickname") ?? "MC-Pal";
   nickname.addEventListener("input", () => {

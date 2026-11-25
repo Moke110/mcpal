@@ -20,10 +20,6 @@
   <body>
     <header class="app-header">
       <span>MC-Pal</span>
-      <nav class="mode-picker" aria-label="运行模式">
-        <button id="show-simulation" type="button" aria-controls="simulation-workspace" aria-pressed="true">模拟模式</button>
-        <button id="show-minecraft" type="button" aria-controls="minecraft-workspace" aria-pressed="false">Minecraft 实机</button>
-      </nav>
       <div class="window-controls">
         <button type="button" data-window-control="minimize" aria-label="最小化">−</button>
         <button type="button" data-window-control="toggle-maximize" aria-label="最大化">□</button>
@@ -38,6 +34,12 @@
       <p id="pal-list-error" role="alert"></p>
     </nav>
     <main>
+      <section id="pal-home" class="panel" aria-label="主页">
+        <div class="home-guide">
+          <span class="mark" aria-hidden="true">M</span>
+          <p id="home-instruction">从左侧选择伙伴，开始聊天或陪玩。</p>
+        </div>
+      </section>
       <section id="pal-creation" class="panel pal-panel" hidden>
         <h2>创建伙伴</h2>
         <form id="create-pal">
@@ -108,7 +110,7 @@
           <p id="pal-chat-error" role="alert"></p>
         </form>
       </section>
-      <div id="desktop-workspaces">
+      <div id="desktop-workspaces" hidden>
     <div id="simulation-workspace" class="workspace">
       <section class="panel conversation" aria-labelledby="conversation-title">
         <div class="panel-title">
@@ -129,7 +131,10 @@
         <p id="error" role="alert" hidden></p>
       </section>
 
-      <aside aria-label="模拟状态">
+      <aside aria-label="会话信息">
+        <details id="session-settings" open>
+          <summary>会话设置</summary>
+          <div class="session-settings-panels">
         <section class="panel" aria-labelledby="observation-title">
           <div class="panel-title">
             <h2 id="observation-title">游戏观测</h2>
@@ -210,7 +215,7 @@
         </section>
         <details class="panel" id="acceptance">
           <summary>联合验收</summary>
-          <p>首次启动可直接体验模拟。实机、模型和音频设备需由操作者设置和启用。</p>
+          <p>创建使用模拟大脑的伙伴后即可体验模拟。实机、模型和音频设备需由操作者设置和启用。</p>
           <button id="open-settings-folder" type="button">打开本机设置目录</button>
           <p>将便携包内的 settings.example.env 另存为 .env，填写所需设置后重启。</p>
           <ul>
@@ -219,6 +224,8 @@
             <li>记录读取窗口、超时和取消。显存低于 6,000,000,000 字节及实际音频与任务 P95 待现场测量。</li>
           </ul>
           <p>便携包内的「快速开始.md」包含现场验收步骤和记录口径。</p>
+        </details>
+          </div>
         </details>
         <section class="panel" aria-labelledby="asr-title">
           <h2 id="asr-title">本机语音输入</h2>

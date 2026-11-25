@@ -23,6 +23,7 @@ function showPlayWorkspace() {
   if (!selected || operationPanel.hidden) return;
   el("desktop-workspaces").hidden = false;
   el("simulation-workspace").hidden = false;
+  el("session-settings").open = true;
   el("minecraft-workspace").hidden = false;
 }
 

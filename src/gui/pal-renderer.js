@@ -12,7 +12,7 @@ const operationTitle = document.querySelector("#pal-operation-title");
 const operationName = document.querySelector("#pal-operation-name");
 
 function showPanel(panel) {
-  for (const candidate of [creation, operationPanel, workspaces]) {
+  for (const candidate of [document.getElementById("pal-home"), creation, operationPanel, workspaces]) {
     candidate.hidden = candidate !== panel;
   }
 }
@@ -46,9 +46,6 @@ function syncLogin() {
 
 login.addEventListener("change", syncLogin);
 document.querySelector("#new-pal").addEventListener("click", () => showPanel(creation));
-for (const id of ["show-simulation", "show-minecraft"]) {
-  document.getElementById(id).addEventListener("click", () => showPanel(workspaces));
-}
 const maximize = document.querySelector('[data-window-control="toggle-maximize"]');
 profiles.onWindowMaximized((maximized) => {
   maximize.textContent = maximized ? "❐" : "□";
@@ -82,6 +79,9 @@ form.addEventListener("submit", async (event) => {
 });
 
 void profiles.list().then((saved) => {
+  if (saved.length === 0) {
+    document.getElementById("home-instruction").textContent = "点击左侧「创建伙伴」，开始第一次聊天或陪玩。";
+  }
   for (const profile of saved) addProfile(profile);
 }).catch((error) => {
   listError.textContent = error.message;

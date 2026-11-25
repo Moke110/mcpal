@@ -1,11 +1,4 @@
 [hidden] { display: none !important; }
-.mode-picker { display: flex; gap: 6px; }
-.mode-picker button {
-  color: #f6f7ee;
-  border-color: #487159;
-  background: transparent;
-}
-.mode-picker button[aria-pressed="true"], .mode-picker button:hover { background: #416b51; }
 .live-connection { align-self: start; }
 .live-badge {
   background: #e4eddd;
