@@ -63,10 +63,10 @@ async function startDesktop(): Promise<void> {
   }
   const api = createApiBackend(process.env);
   const localFixture = process.env.MCPAL_LOCAL_FIXTURE;
-  const expressState = createStateExpressor<ReturnType<SimulationSession["snapshot"]>>(() => {
-    if (window.isDestroyed()) return;
-    return (state) => window.webContents.send("desktop:state", state);
-  });
+  const expressState = createStateExpressor<ReturnType<SimulationSession["snapshot"]>>(
+    (state) => window.webContents.send("desktop:state", state),
+    () => !window.isDestroyed(),
+  );
   const publish = () => expressState(session.snapshot());
   const local = localFixture === "1" || localFixture === "over-budget"
     ? openLocalFixture(publish, localFixture === "over-budget")
@@ -162,7 +162,7 @@ async function startDesktop(): Promise<void> {
     await mkdir(path, { recursive: true });
     if (await shell.openPath(path)) throw new Error("无法打开本机设置目录");
   });
-  handle("desktop:submit", senseText);
+  handle("desktop:submit", (input, source) => { senseText(input, source); });
   handle("desktop:observe", () => session.advanceObservation());
   handle("desktop:timeout", (enabled) => {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid timeout setting");

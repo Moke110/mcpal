@@ -12,7 +12,6 @@
   border-radius: 6px;
   padding: 4px 8px;
   text-align: center;
-  white-space: nowrap;
 }
 #minecraft-settings {
   display: grid;

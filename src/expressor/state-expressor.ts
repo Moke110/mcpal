@@ -1,5 +1,5 @@
-export function createStateExpressor<State>(output: () => ((state: State) => void) | undefined) {
+export function createStateExpressor<State>(output: (state: State) => void, isAvailable = () => true) {
   return (state: State): void => {
-    output()?.(state);
+    if (isAvailable()) output(state);
   };
 }

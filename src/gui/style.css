@@ -108,6 +108,7 @@ input:not([type="checkbox"], [type="file"]), select, textarea {
   color: #1d3227;
 }
 input[type="checkbox"] { accent-color: #28543b; }
+label.control:has(> input[type="checkbox"]) { display: flex; align-items: center; gap: 10px; }
 .composer-row textarea {
   flex: 1 1 170px;
   min-height: 3.5rem;
@@ -116,7 +117,8 @@ input[type="checkbox"] { accent-color: #28543b; }
 }
 .message p { white-space: pre-wrap; }
 p[role="alert"] { color: #873926; margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
-p[role="status"] { margin-top: 6px; color: #506554; font-size: .88rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+[role="status"], dd[aria-live="polite"] { color: #506554; font-size: .88rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+p[role="status"] { margin-top: 6px; }
 p[role="alert"]:empty { display: none; }
 .place { margin-top: 10px; font-weight: 600; }
 ul, dl { margin: 9px 0 0; padding: 0; }
@@ -163,7 +165,6 @@ dd { margin: 0; text-align: right; font-weight: 600; }
 .pal-panel { margin: 1rem; max-width: 580px; }
 .pal-panel form, .pal-panel fieldset:not([hidden]), .pal-panel label { display: grid; gap: .55rem; }
 .pal-panel form { margin-top: 1rem; }
-.pal-panel label:has(> input[type="checkbox"]) { display: flex; align-items: center; }
 .pal-panel button { justify-self: start; }
 
 .pal-panel form[hidden] { display: none; }
