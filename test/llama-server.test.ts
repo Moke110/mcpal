@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { localReasoningOptions, localServerHealthy } from "../src/desktop/llama-server.ts";
+import { localReasoningOptions, localServerHealthy } from "../src/processor/llama-server.ts";
 
 test("local llama-server disables thinking with the option advertised by the executable", () => {
   const legacyHelp = "--reasoning-format FORMAT  instead controls response formatting\n" +

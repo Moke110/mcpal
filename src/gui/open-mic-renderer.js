@@ -1,5 +1,5 @@
 import { openPlaybackReference } from "./speech-renderer.js";
-import { isStopRequest } from "./stop-request.js";
+import { isStopRequest } from "../processor/stop-request.js";
 
 const find = (id) => document.getElementById(id);
 const bridge = window.companion;

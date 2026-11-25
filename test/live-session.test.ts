@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { connect } from "../src/client.ts";
-import { LiveMinecraftSession } from "../src/desktop/live-session.ts";
+import { LiveMinecraftSession } from "../src/sensor/live-session.ts";
 import type { Observation } from "../src/perception.ts";
 import type { TaskResult } from "../src/tasks.ts";
 

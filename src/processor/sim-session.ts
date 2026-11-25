@@ -4,7 +4,7 @@ import type { ApiBackend, ApiCheck, ApiResult } from "./api-backend.ts";
 import type { LocalBackend, LocalView } from "./local-backend.ts";
 import { authorizeModelOutput } from "./model-protocol.ts";
 import type { GameIntent, ModelObservation } from "./model-protocol.ts";
-import type { LiveMinecraftState, MinecraftOperatorInput } from "./live-session.ts";
+import type { LiveMinecraftState, MinecraftOperatorInput } from "../sensor/live-session.ts";
 import { isStopRequest } from "./stop-request.js";
 
 const observations = [

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
-import { SpeechOutput, type SpeechEvent } from "../src/desktop/speech-output.ts";
+import { SpeechOutput, type SpeechEvent } from "../src/expressor/speech-output.ts";
 
 test("停播撤回迟到 PCM，后续回复拥有独立的播报编号", async () => {
   const events: SpeechEvent[] = [];
@@ -38,7 +38,7 @@ test("播放线程清空 PCM 后只报告已输出的末帧，后续量子没有
     },
     registerProcessor(_name: string, processor: typeof Processor) { Processor = processor; },
   };
-  runInNewContext(readFileSync(new URL("../src/desktop/speech-worklet.js", import.meta.url), "utf8"), worklet);
+  runInNewContext(readFileSync(new URL("../src/gui/speech-worklet.js", import.meta.url), "utf8"), worklet);
   assert.ok(Processor);
   const player = new Processor({ processorOptions: { samples: Float32Array.of(0, 0.5, 0.5, 1) } });
   const first = new Float32Array(2);
@@ -67,7 +67,7 @@ test("停播撤回仍在初始化音频设备的试听，并允许再次试听",
     previewSpeech: async () => { previews++; },
     cancelSpeech: async () => { stops++; },
   };
-  const source = readFileSync(new URL("../src/desktop/speech-renderer.js", import.meta.url), "utf8")
+  const source = readFileSync(new URL("../src/gui/speech-renderer.js", import.meta.url), "utf8")
     .replace("export { openPlaybackReference };", "");
   runInNewContext(source, {
     document: { getElementById: element },

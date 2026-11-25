@@ -4,18 +4,20 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadEnvFile } from "node:process";
+import { createStateExpressor } from "../expressor/state-expressor.ts";
+import { createTextSensor } from "../sensor/text-sensor.ts";
 import { connect } from "../client.ts";
-import { createApiBackend } from "./api-backend.ts";
-import { createLocalBackend } from "./llama-server.ts";
-import { PalProfiles } from "./pal-profiles.ts";
-import { openLocalFixture } from "./local-fixture.ts";
-import { offlinePlaySettings } from "./pal-play.ts";
-import { LiveMinecraftSession } from "./live-session.ts";
-import { scenarios, SimulationSession } from "./sim-session.ts";
-import { SpeechOutput } from "./speech-output.ts";
-import { VoiceInput } from "./voice-input.ts";
-import { openAsrFixture, openVosk } from "./vosk-asr.ts";
-import { listWindowsVoices, synthesizeSpeechFixture, synthesizeWindowsSpeech } from "./windows-speech.ts";
+import { createApiBackend } from "../processor/api-backend.ts";
+import { createLocalBackend } from "../processor/llama-server.ts";
+import { PalProfiles } from "../gui/pal-profiles.ts";
+import { openLocalFixture } from "../processor/local-fixture.ts";
+import { offlinePlaySettings } from "../gui/pal-play.ts";
+import { LiveMinecraftSession } from "../sensor/live-session.ts";
+import { scenarios, SimulationSession } from "../processor/sim-session.ts";
+import { SpeechOutput } from "../expressor/speech-output.ts";
+import { VoiceInput } from "../sensor/voice-input.ts";
+import { openAsrFixture, openVosk } from "../sensor/vosk-asr.ts";
+import { listWindowsVoices, synthesizeSpeechFixture, synthesizeWindowsSpeech } from "../expressor/windows-speech.ts";
 
 const dataPath = process.env.MCPAL_DESKTOP_DATA;
 if (dataPath) app.setPath("userData", dataPath);
@@ -37,14 +39,14 @@ async function startDesktop(): Promise<void> {
     minHeight: 540,
     backgroundColor: "#f3f2eb",
     webPreferences: {
-      preload: fileURLToPath(new URL("./preload.cjs", import.meta.url)),
+      preload: fileURLToPath(new URL("../gui/preload.cjs", import.meta.url)),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
   });
 
-  const page = new URL("./index.html", import.meta.url);
+  const page = new URL("../gui/index.html", import.meta.url);
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
   try {
@@ -55,9 +57,11 @@ async function startDesktop(): Promise<void> {
   }
   const api = createApiBackend(process.env);
   const localFixture = process.env.MCPAL_LOCAL_FIXTURE;
-  const publish = () => {
-    if (!window.isDestroyed()) window.webContents.send("desktop:state", session.snapshot());
-  };
+  const expressState = createStateExpressor<ReturnType<SimulationSession["snapshot"]>>(() => {
+    if (window.isDestroyed()) return;
+    return (state) => window.webContents.send("desktop:state", state);
+  });
+  const publish = () => expressState(session.snapshot());
   const local = localFixture === "1" || localFixture === "over-budget"
     ? openLocalFixture(publish, localFixture === "over-budget")
     : createLocalBackend(process.env, publish);
@@ -69,9 +73,7 @@ async function startDesktop(): Promise<void> {
       if (!window.isDestroyed()) window.webContents.send("desktop:speech-event", event);
     },
   });
-  const session = new SimulationSession((state) => {
-    if (!window.isDestroyed()) window.webContents.send("desktop:state", state);
-  }, undefined, {
+  const session = new SimulationSession(expressState, undefined, {
     api,
     local,
     onReply: (reply) => speech.reply(reply),
@@ -91,6 +93,7 @@ async function startDesktop(): Promise<void> {
       if (intent.kind === "stop") live.stop();
     },
   });
+  const senseText = createTextSensor((text, source) => session.submitText(text, source));
   const asrFixture = process.env.MCPAL_ASR_FIXTURE === "1";
   let openMicEnabled = false;
   const voice = new VoiceInput({
@@ -101,7 +104,7 @@ async function startDesktop(): Promise<void> {
     interrupt: () => speech.cancel(),
     now: () => performance.timeOrigin + performance.now(),
     window: () => session.nextInputWindow(),
-    submit: (text) => session.submitText(text, "voice"),
+    submit: (text) => senseText(text, "voice"),
   });
   window.webContents.session.setPermissionRequestHandler((contents, permission, decide, details) => {
     decide(contents === window.webContents && permission === "media" &&
@@ -153,12 +156,7 @@ async function startDesktop(): Promise<void> {
     await mkdir(path, { recursive: true });
     if (await shell.openPath(path)) throw new Error("无法打开本机设置目录");
   });
-  handle("desktop:submit", (input, source) => {
-    if (typeof input !== "string" || (source !== "gui" && source !== "voice")) {
-      throw new TypeError("Invalid desktop input");
-    }
-    session.submitText(input, source);
-  });
+  handle("desktop:submit", senseText);
   handle("desktop:observe", () => session.advanceObservation());
   handle("desktop:timeout", (enabled) => {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid timeout setting");

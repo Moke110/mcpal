@@ -2,7 +2,7 @@ import { deepEqual, rejects } from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { PalProfiles } from "../src/desktop/pal-profiles.ts";
+import { PalProfiles } from "../src/gui/pal-profiles.ts";
 
 test("offline Pal settings remain available when the desktop restarts", async () => {
   await mkdir("tmp", { recursive: true });
