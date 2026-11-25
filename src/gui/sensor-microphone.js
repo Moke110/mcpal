@@ -9,7 +9,7 @@ let state = "未监听";
 
 function showStatus(message) {
   state = message;
-  status.textContent = message;
+  status.textContent = capture?.profileId === profile?.id ? message : "未监听";
 }
 
 async function devices() {
@@ -29,7 +29,7 @@ document.querySelector("#pal-operation").addEventListener("pal-operation", ({ de
   profile = detail.profile;
   enabled.checked = !!profile.microphone?.enabled;
   sender.value = profile.microphone?.sender || "桌面操作者";
-  status.textContent = state;
+  status.textContent = capture?.profileId === profile?.id ? state : "未监听";
   void devices().catch(error => { status.textContent = error.message; });
 });
 
@@ -48,6 +48,7 @@ document.querySelector("#sensor-microphone").addEventListener("change", async ()
     owner.microphone = await api.setMicrophone(owner.id, { enabled: enabled.checked, deviceId: select.value,
       label: select.selectedOptions[0]?.textContent || "", sender: sender.value });
   } catch (error) {
+    if (profile !== owner) return;
     enabled.checked = !!owner.microphone?.enabled;
     status.textContent = error.message;
   }
@@ -99,7 +100,7 @@ async function listen(c) {
 
 api.onMicrophone(async command => {
   if (command.action === "start") {
-    capture = { token: command.token, deviceId: command.deviceId };
+    capture = { profileId: command.profileId, token: command.token, deviceId: command.deviceId };
     showStatus("正在连接");
     await listen(capture);
     return;

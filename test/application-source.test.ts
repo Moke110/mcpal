@@ -59,3 +59,29 @@ test("simultaneous sources keep identical sentences in final arrival order", asy
   await stopped;
   cache.end();
 });
+
+test("an active application retries a failed recognizer without restarting capture", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let capture!: { ready(): void };
+  let asr!: RecognizerEvents;
+  let attempts = 0;
+  const app = new ApplicationAudio((_path, events) => {
+    capture = events;
+    return async () => {};
+  }, events => {
+    if (++attempts === 1) throw new Error("startup");
+    asr = events;
+    return { write() {}, cancel() {}, end() { events.final(""); } };
+  }, () => {});
+  app.start("Meeting.exe", () => {});
+  capture.ready();
+  t.mock.timers.tick(5000);
+  assert.equal(attempts, 2);
+  asr.failure("worker exited");
+  t.mock.timers.tick(5000);
+  assert.equal(attempts, 3);
+  asr.failure("worker exited");
+  await app.stop();
+  t.mock.timers.tick(5000);
+  assert.equal(attempts, 3);
+});

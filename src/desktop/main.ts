@@ -145,7 +145,7 @@ async function startDesktop(): Promise<void> {
 
   let microphoneDiscoveryUntil = 0;
   const microphone = new Microphone(events => openVosk(events, process.env), event => {
-    if (!window.isDestroyed()) window.webContents.send("sensor:microphone-command", event);
+    if (!window.isDestroyed()) window.webContents.send("sensor:microphone-command", { ...event, profileId: activeProfile?.id });
   });
   let applicationState = { profileId: "", status: "未监听" };
   const application = new ApplicationAudio(captureApplication, events => openVosk(events, process.env), status => {

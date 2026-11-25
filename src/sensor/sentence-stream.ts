@@ -4,6 +4,7 @@ export class SentenceStream {
   #recognizer: StreamingRecognizer;
   #closed = false;
   #finishing = false;
+  #timeout?: ReturnType<typeof setTimeout>;
   #resolve!: () => void;
   #done = new Promise<void>(resolve => { this.#resolve = resolve; });
 
@@ -12,7 +13,7 @@ export class SentenceStream {
     const commit = (text: string) => { if (!this.#closed && text.trim()) append(text.trim()); };
     this.#recognizer = open({
       partial() {}, segment: commit,
-      final: text => { commit(text); this.#closed = true; this.#resolve(); },
+      final: text => { clearTimeout(this.#timeout); commit(text); this.#closed = true; this.#resolve(); },
       failure: message => {
         if (this.#closed) return;
         this.disconnect();
@@ -28,6 +29,7 @@ export class SentenceStream {
   finish() {
     if (!this.#closed && !this.#finishing) {
       this.#finishing = true;
+      this.#timeout = setTimeout(() => this.disconnect(), 5000);
       this.#recognizer.end();
     }
     return this.#done;
@@ -36,6 +38,7 @@ export class SentenceStream {
   disconnect() {
     if (this.#closed) return;
     this.#closed = true;
+    clearTimeout(this.#timeout);
     this.#recognizer.cancel();
     this.#resolve();
   }
