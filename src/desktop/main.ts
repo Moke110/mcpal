@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadEnvFile } from "node:process";
 import { createStateExpressor } from "../expressor/state-expressor.ts";
@@ -10,6 +10,8 @@ import { connect } from "../client.ts";
 import { createApiBackend } from "../processor/api-backend.ts";
 import { createLocalBackend } from "../processor/llama-server.ts";
 import { PalProfiles, type PalProfile } from "../gui/pal-profiles.ts";
+import { ApplicationAudio } from "../sensor/application-audio.ts";
+import { captureApplication, listAudioApplications } from "../sensor/process-loopback.ts";
 import { Microphone } from "../sensor/microphone.ts";
 import { MessageCache } from "../sensor/message-cache.ts";
 import { openLocalFixture } from "../processor/local-fixture.ts";
@@ -145,6 +147,30 @@ async function startDesktop(): Promise<void> {
   const microphone = new Microphone(events => openVosk(events, process.env), event => {
     if (!window.isDestroyed()) window.webContents.send("sensor:microphone-command", event);
   });
+  let applicationState = { profileId: "", status: "未监听" };
+  const application = new ApplicationAudio(captureApplication, events => openVosk(events, process.env), status => {
+    applicationState = { profileId: activeProfile?.id || "", status };
+    if (!window.isDestroyed()) window.webContents.send("sensor:application-state", applicationState);
+  });
+  function startApplication(profile: PalProfile) {
+    const source = profile.application;
+    const append = appendMessage;
+    if (source?.enabled && append) application.start(source.path,
+      text => append("应用 · " + basename(source.path), "未知发言人", text));
+  }
+  handle("sensor:applications", listAudioApplications);
+  handle("sensor:application-status", () => applicationState);
+  handle("sensor:application-set", async (id, path, enabled) => {
+    if (typeof id !== "string") throw new TypeError("Invalid Pal");
+    const profile = await profiles.setApplication(id, path, enabled);
+    await transition(async () => {
+      if (activeProfile?.id !== id) return;
+      await application.stop();
+      activeProfile = profile;
+      startApplication(profile);
+    });
+    return profile.application;
+  });
   let transitioning = Promise.resolve();
   function transition(change: () => Promise<void>) {
     const next = transitioning.then(change);
@@ -175,18 +201,19 @@ async function startDesktop(): Promise<void> {
 
   function startSensor(profile: PalProfile) {
     return transition(async () => {
-    await microphone.stop();
-    activeProfile = profile;
-    appendMessage = cache.begin();
-    startMicrophone(profile);
+      await Promise.all([microphone.stop(), application.stop()]);
+      activeProfile = profile;
+      appendMessage = cache.begin();
+      startMicrophone(profile);
+      startApplication(profile);
     });
   }
   function endSensor() {
     return transition(async () => {
-    await microphone.stop();
-    activeProfile = undefined;
-    appendMessage = undefined;
-    cache.end();
+      await Promise.all([microphone.stop(), application.stop()]);
+      activeProfile = undefined;
+      appendMessage = undefined;
+      cache.end();
     });
   }
 

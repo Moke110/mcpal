@@ -8,6 +8,7 @@ export type TextSources = typeof defaultSources;
 export type MicrophoneSource = { enabled: boolean; deviceId: string; label: string; sender: string };
 
 export interface PalProfile {
+  application?: { enabled: boolean; path: string };
   microphone?: MicrophoneSource;
   sources?: TextSources;
   id: string;
@@ -41,6 +42,12 @@ export class PalProfiles {
     return this.#update(id, profile => {
       profile.sources = { ...defaultSources, ...profile.sources, [key]: enabled };
     });
+  }
+
+  setApplication(id: string, path: unknown, enabled: unknown) {
+    if (typeof enabled !== "boolean" || typeof path !== "string" ||
+        !/^[a-z]:\\[^\x00-\x1f]+\.exe$/i.test(path) || path.length > 1024) throw new TypeError("请选择 Windows 应用");
+    return this.#update(id, profile => { profile.application = { path, enabled }; });
   }
 
   setMicrophone(id: string, input: unknown) {
