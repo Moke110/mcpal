@@ -10,6 +10,7 @@
     <script type="module" src="./pal-play-renderer.js"></script>
     <script type="module" src="./pal-renderer.js"></script>
     <script type="module" src="./sensor-microphone.js"></script>
+    <script type="module" src="./sensor-application.js"></script>
     <script type="module" src="./pal-chat-renderer.js"></script>
     <script type="module" src="./renderer.js"></script>
     <script type="module" src="./speech-renderer.js"></script>
@@ -43,6 +44,10 @@
           <label><input type="checkbox" id="mic-enabled">启用麦克风源</label>
           <output id="mic-state" role="status">未监听</output>
         </fieldset>
+        <label><input type="checkbox" id="app-enabled">应用声音</label>
+        <label>聊天或会议应用<select id="app-source"></select></label>
+        <button id="app-discover" type="button">刷新应用</button>
+        <output id="app-state">未监听</output>
       </details>
       <button id="sensor-debug" type="button">感受器消息</button>
       <p id="pal-list-error" role="alert"></p>
