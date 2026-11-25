@@ -7,6 +7,7 @@ import { loadEnvFile } from "node:process";
 import { connect } from "../client.ts";
 import { createApiBackend } from "./api-backend.ts";
 import { createLocalBackend } from "./llama-server.ts";
+import { PalProfiles } from "./pal-profiles.ts";
 import { openLocalFixture } from "./local-fixture.ts";
 import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
@@ -28,6 +29,7 @@ async function startDesktop(): Promise<void> {
   Menu.setApplicationMenu(null);
   const window = new BrowserWindow({
     title: "MC-Pal",
+    frame: false,
     width: 1120,
     height: 800,
     minWidth: 600,
@@ -120,6 +122,20 @@ async function startDesktop(): Promise<void> {
     });
   }
 
+  const profiles = new PalProfiles(app.getPath("userData"));
+  handle("pal:list", () => profiles.list());
+  handle("pal:create", (input) => profiles.create(input));
+  handle("desktop:window-control", (action) => {
+    switch (action) {
+      case "minimize": window.minimize(); break;
+      case "toggle-maximize":
+        if (window.isMaximized()) window.unmaximize();
+        else window.maximize();
+        break;
+      case "close": window.close(); break;
+      default: throw new TypeError("Invalid window action");
+    }
+  });
   handle("desktop:snapshot", () => session.snapshot());
   handle("desktop:settings-folder", async () => {
     const path = app.getPath("userData");

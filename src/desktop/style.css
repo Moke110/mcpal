@@ -139,3 +139,27 @@ dd { margin: 0; text-align: right; font-weight: 600; }
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .conversation { height: 420px; }
 }
+
+.app-header {
+  app-region: drag;
+  -webkit-app-region: drag;
+  min-height: 3rem;
+  padding: 0 0 0 1rem;
+  gap: .5rem;
+}
+.app-header button { -webkit-app-region: no-drag; }
+.window-controls { display: flex; align-self: stretch; }
+.window-controls button { border: 0; border-radius: 0; background: transparent; color: inherit; min-width: 2.7rem; }
+.window-controls button:hover { background: #2e523d; }
+.window-controls button[data-window-control="close"]:hover { background: #9d3430; }
+.pal-layout { display: grid; grid-template-columns: clamp(135px, 18vw, 205px) minmax(0, 1fr); min-height: calc(100vh - 3rem); }
+.pal-sidebar { background: #1c3c2c; color: #f6f7ee; padding: 1rem .75rem; }
+.pal-sidebar .brand { margin-bottom: 1rem; }
+.pal-sidebar ul { padding: 0; list-style: none; }
+.pal-sidebar li { margin-bottom: .5rem; overflow-wrap: anywhere; }
+.pal-sidebar summary { cursor: pointer; padding: .3rem; }
+.pal-sidebar details button { display: block; margin: .25rem 0 .25rem .75rem; }
+.pal-panel { margin: 1rem; max-width: 580px; }
+.pal-panel form, .pal-panel fieldset:not([hidden]), .pal-panel label { display: grid; gap: .55rem; }
+.pal-panel form { margin-top: 1rem; }
+.pal-panel button { justify-self: start; }

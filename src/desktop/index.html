@@ -7,6 +7,7 @@
     <title>MC-Pal</title>
     <link rel="stylesheet" href="./style.css">
     <link rel="stylesheet" href="./live.css">
+    <script type="module" src="./pal-renderer.js"></script>
     <script defer src="./renderer.js"></script>
     <script type="module" src="./speech-renderer.js"></script>
     <script type="module" src="./asr-renderer.js"></script>
@@ -16,16 +17,63 @@
   </head>
   <body>
     <header class="app-header">
-      <div class="brand">
-        <span class="mark" aria-hidden="true">M</span>
-        <h1>MC-Pal</h1>
-      </div>
+      <span>MC-Pal</span>
       <nav class="mode-picker" aria-label="运行模式">
         <button id="show-simulation" type="button" aria-controls="simulation-workspace" aria-pressed="true">模拟模式</button>
         <button id="show-minecraft" type="button" aria-controls="minecraft-workspace" aria-pressed="false">Minecraft 实机</button>
       </nav>
+      <div class="window-controls">
+        <button type="button" data-window-control="minimize" aria-label="最小化">−</button>
+        <button type="button" data-window-control="toggle-maximize" aria-label="最大化或还原">□</button>
+        <button type="button" data-window-control="close" aria-label="关闭">×</button>
+      </div>
     </header>
+    <div class="pal-layout">
+    <nav class="pal-sidebar" aria-label="伙伴">
+      <div class="brand"><span class="mark" aria-hidden="true">M</span><h1>MC-Pal</h1></div>
+      <button id="new-pal" type="button">创建伙伴</button>
+      <ul id="pal-list"></ul>
+      <p id="pal-list-error" role="alert"></p>
+    </nav>
     <main>
+      <section id="pal-creation" class="panel pal-panel" hidden>
+        <h2>创建伙伴</h2>
+        <form id="create-pal">
+          <label>大脑模型
+            <select name="backend">
+              <option value="sim">模拟</option>
+              <option value="api">API 模型</option>
+              <option value="local">本地模型</option>
+            </select>
+          </label>
+          <label>语音音色
+            <select name="voice"><option value="default">系统默认</option></select>
+          </label>
+          <label>游戏登录方式
+            <select name="login" required>
+              <option value="">请选择</option>
+              <option value="offline">离线登录</option>
+              <option value="online" disabled>正版登录</option>
+            </select>
+          </label>
+          <fieldset id="pal-offline-settings" hidden disabled>
+            <label>游戏昵称 <input name="nickname" required pattern="[A-Za-z0-9_]{1,16}" maxlength="16"></label>
+            <label>皮肤
+              <select name="skin">
+                <option value="classic">经典</option>
+                <option value="slim">纤细</option>
+              </select>
+            </label>
+          </fieldset>
+          <button class="primary" type="submit">保存伙伴</button>
+          <p id="pal-error" role="alert"></p>
+        </form>
+      </section>
+      <section id="pal-operation" class="panel pal-panel" hidden>
+        <h2 id="pal-operation-title"></h2>
+        <p id="pal-operation-name"></p>
+      </section>
+      <div id="desktop-workspaces">
     <div id="simulation-workspace" class="workspace">
       <section class="panel conversation" aria-labelledby="conversation-title">
         <div class="panel-title">
@@ -304,6 +352,8 @@
         </section>
       </aside>
     </div>
+      </div>
     </main>
+    </div>
   </body>
 </html>

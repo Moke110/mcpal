@@ -46,3 +46,9 @@ contextBridge.exposeInMainWorld("minecraft", {
     ipcRenderer.on("minecraft:state", (_event, state) => listener(state));
   },
 });
+
+contextBridge.exposeInMainWorld("palProfiles", {
+  list: () => ipcRenderer.invoke("pal:list"),
+  create: (profile) => ipcRenderer.invoke("pal:create", profile),
+  windowControl: (action) => ipcRenderer.invoke("desktop:window-control", action),
+});
