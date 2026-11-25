@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadEnvFile } from "node:process";
 import { createStateExpressor } from "../expressor/state-expressor.ts";
@@ -9,7 +9,11 @@ import { createTextSensor } from "../sensor/text-sensor.ts";
 import { connect } from "../client.ts";
 import { createApiBackend } from "../processor/api-backend.ts";
 import { createLocalBackend } from "../processor/llama-server.ts";
-import { PalProfiles } from "../gui/pal-profiles.ts";
+import { PalProfiles, type PalProfile } from "../gui/pal-profiles.ts";
+import { ApplicationAudio } from "../sensor/application-audio.ts";
+import { captureApplication, listAudioApplications } from "../sensor/process-loopback.ts";
+import { Microphone } from "../sensor/microphone.ts";
+import { MessageCache } from "../sensor/message-cache.ts";
 import { openLocalFixture } from "../processor/local-fixture.ts";
 import { offlinePlaySettings } from "../gui/pal-play.ts";
 import { LiveMinecraftSession } from "../sensor/live-session.ts";
@@ -117,7 +121,7 @@ async function startDesktop(): Promise<void> {
       details.isMainFrame && details.requestingUrl === page.href &&
       "mediaTypes" in details && details.mediaTypes?.length === 1 &&
       details.mediaTypes[0] === "audio" &&
-      (!asrFixture && openMicEnabled || voice.snapshot().phase === "recording"));
+      (microphone.enabled || Date.now() < microphoneDiscoveryUntil || !asrFixture && openMicEnabled || voice.snapshot().phase === "recording"));
   });
 
   function handle(
@@ -134,6 +138,106 @@ async function startDesktop(): Promise<void> {
   }
 
   const profiles = new PalProfiles(app.getPath("userData"));
+  let debugWindow: BrowserWindow | null = null;
+  const cache = new MessageCache(messages => debugWindow?.webContents.send("sensor:messages", messages));
+  let activeProfile: PalProfile | undefined;
+  let appendMessage: ReturnType<MessageCache["begin"]> | undefined;
+
+  let microphoneDiscoveryUntil = 0;
+  const microphone = new Microphone(events => openVosk(events, process.env), event => {
+    if (!window.isDestroyed()) window.webContents.send("sensor:microphone-command", { ...event, profileId: activeProfile?.id });
+  });
+  let applicationState = { profileId: "", status: "未监听" };
+  const application = new ApplicationAudio(captureApplication, events => openVosk(events, process.env), status => {
+    applicationState = { profileId: activeProfile?.id || "", status };
+    if (!window.isDestroyed()) window.webContents.send("sensor:application-state", applicationState);
+  });
+  function startApplication(profile: PalProfile) {
+    const source = profile.application;
+    const append = appendMessage;
+    if (source?.enabled && append) application.start(source.path,
+      text => append("应用 · " + basename(source.path), "未知发言人", text));
+  }
+  handle("sensor:applications", listAudioApplications);
+  handle("sensor:application-status", () => applicationState);
+  handle("sensor:application-set", async (id, path, enabled) => {
+    if (typeof id !== "string") throw new TypeError("Invalid Pal");
+    const profile = await profiles.setApplication(id, path, enabled);
+    await transition(async () => {
+      if (activeProfile?.id !== id) return;
+      await application.stop();
+      activeProfile = profile;
+      startApplication(profile);
+    });
+    return profile.application;
+  });
+  let transitioning = Promise.resolve();
+  function transition(change: () => Promise<void>) {
+    const next = transitioning.then(change);
+    transitioning = next.catch(() => {});
+    return next;
+  }
+  function startMicrophone(profile: PalProfile) {
+    const source = profile.microphone;
+    const append = appendMessage;
+    if (source?.enabled && append) microphone.start(source, text => append("麦克风 · " + source.label, source.sender, text));
+  }
+  handle("sensor:microphone-discover", () => { microphoneDiscoveryUntil = Date.now() + 5000; });
+  handle("sensor:microphone-ready", token => microphone.ready(token));
+  handle("sensor:microphone-audio", (token, pcm) => microphone.audio(token, pcm));
+  handle("sensor:microphone-lost", token => microphone.lost(token));
+  handle("sensor:microphone-flushed", token => microphone.flushed(token));
+  handle("sensor:microphone-set", async (id, input) => {
+    if (typeof id !== "string") throw new TypeError("Invalid Pal");
+    const profile = await profiles.setMicrophone(id, input);
+    await transition(async () => {
+      if (activeProfile?.id !== id) return;
+      await microphone.stop();
+      activeProfile = profile;
+      startMicrophone(profile);
+    });
+    return profile.microphone;
+  });
+
+  function startSensor(profile: PalProfile) {
+    return transition(async () => {
+      await Promise.all([microphone.stop(), application.stop()]);
+      activeProfile = profile;
+      appendMessage = cache.begin();
+      startMicrophone(profile);
+      startApplication(profile);
+    });
+  }
+  function endSensor() {
+    return transition(async () => {
+      await Promise.all([microphone.stop(), application.stop()]);
+      activeProfile = undefined;
+      appendMessage = undefined;
+      cache.end();
+    });
+  }
+
+  handle("sensor:debug", async () => {
+    if (debugWindow) { debugWindow.show(); return; }
+    const viewer = new BrowserWindow({ parent: window, title: "感受器消息", width: 720, height: 450,
+      backgroundColor: "#161a1c", webPreferences: {
+        preload: fileURLToPath(new URL("../gui/sensor-debug-preload.cjs", import.meta.url)),
+        sandbox: true, contextIsolation: true, nodeIntegration: false,
+      } });
+    debugWindow = viewer;
+    viewer.on("closed", () => { debugWindow = null; });
+    viewer.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    viewer.webContents.on("will-navigate", event => event.preventDefault());
+    await viewer.loadURL(new URL("../gui/sensor-debug.html", import.meta.url).href);
+    if (!viewer.isDestroyed()) viewer.webContents.send("sensor:messages", cache.snapshot());
+  });
+  handle("sensor:text-source", async (id, key, enabled) => {
+    if (typeof id !== "string" || (key !== "gui" && key !== "minecraft") || typeof enabled !== "boolean")
+      throw new TypeError("Invalid text source");
+    const profile = await profiles.setTextSource(id, key, enabled);
+    if (activeProfile?.id === id) activeProfile = profile;
+    return profile.sources;
+  });
   handle("pal:list", () => profiles.list());
   handle("pal:voices", () => listWindowsVoices());
   handle("pal:create", (input) => profiles.create(input));
@@ -142,6 +246,7 @@ async function startDesktop(): Promise<void> {
     if (!profile) throw new Error("找不到所选伙伴");
     if (live.snapshot().active) throw new Error("请先结束 Minecraft 陪玩");
     session.startDesktopChat(profile.backend === "sim" ? "simulated" : profile.backend);
+    await startSensor(profile);
     palVoice = profile.voice;
     if (profile.backend === "local") void session.startLocal();
   });
@@ -162,7 +267,13 @@ async function startDesktop(): Promise<void> {
     await mkdir(path, { recursive: true });
     if (await shell.openPath(path)) throw new Error("无法打开本机设置目录");
   });
-  handle("desktop:submit", (input, source) => { senseText(input, source); });
+  handle("desktop:submit", (input, source) => {
+    if (source === "gui" && activeProfile) {
+      if (!activeProfile.sources?.gui) return;
+      if (typeof input === "string") appendMessage?.("GUI", "桌面操作者", input);
+    }
+    senseText(input, source);
+  });
   handle("desktop:observe", () => session.advanceObservation());
   handle("desktop:timeout", (enabled) => {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid timeout setting");
@@ -240,6 +351,7 @@ async function startDesktop(): Promise<void> {
     if (palPlayActive && (state.phase === "disconnecting" || state.phase === "disconnected" || state.phase === "failed")) {
       palPlayActive = false;
       palVoice = "default";
+      endSensor();
       session.endPalPlay();
     }
     const observation = state.observation;
@@ -255,7 +367,14 @@ async function startDesktop(): Promise<void> {
   }, (config, report, authPrompt, options) => connect(config, report, authPrompt, {
     ...options,
     profilesFolder: join(app.getPath("userData"), "minecraft-profiles"),
-  }), (message) => session.submitMinecraft(message));
+  }), (message) => {
+    if (activeProfile) {
+      if (activeProfile.sources?.minecraft) appendMessage?.("Minecraft 聊天", message.player, message.text);
+      return;
+    }
+    const request = /^!pal\s+([\s\S]+)$/iu.exec(message.text.trim())?.[1]?.trim();
+    if (request) session.submitMinecraft({ ...message, text: request });
+  });
   handle("minecraft:snapshot", () => live.snapshot());
   handle("minecraft:view", () => live.readView());
   handle("minecraft:connect", (settings) => live.open(settings));
@@ -267,6 +386,7 @@ async function startDesktop(): Promise<void> {
     const allowApi = typeof address === "object" && address !== null &&
       "allowApi" in address && address.allowApi === true;
     session.startPalPlay(profile.backend === "sim" ? "simulated" : profile.backend, allowApi);
+    await startSensor(profile);
     palPlayActive = true;
     palVoice = profile.voice;
     if (profile.backend === "local") void session.startLocal();
@@ -281,6 +401,12 @@ async function startDesktop(): Promise<void> {
   handle("minecraft:chat-route", (enabled) => {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid Minecraft reply route");
     live.setChatRoute(enabled);
+  });
+  let closing = false;
+  window.on("close", event => {
+    if (closing) return;
+    event.preventDefault();
+    void endSensor().finally(() => { closing = true; window.close(); });
   });
   window.on("closed", () => {
     voice.cancel();

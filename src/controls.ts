@@ -1,6 +1,5 @@
 import type { Bot } from 'mineflayer'
 import { parseAction, type Action } from './actions.ts'
-import type { Config } from './config.ts'
 import type { Observation } from './perception.ts'
 import { createSkills } from './skills.ts'
 import { createTasks, type TaskResult } from './tasks.ts'
@@ -8,8 +7,6 @@ import { createWorkstationFixture, type RunFixture } from './workstation-fixture
 
 type Report = (event: string, fields?: Record<string, unknown>) => void
 type Command = { kind: 'follow' | 'come' | 'stop' | 'status' | 'help' | 'act'; arg: string }
-export type TrustedMinecraftChat = Readonly<{ player: string; text: string }>
-
 export function parseCommand(message: string): Command | null {
   if (!message.startsWith('!')) return null
   const [, name, arg = ''] = /^!(\S+)(?:\s+([\s\S]*))?$/u.exec(message.trim()) ?? []
@@ -25,18 +22,9 @@ export function parseCommand(message: string): Command | null {
   }
 }
 
-export function authorizedPlayer(bot: Pick<Bot, 'players' | 'username'>, config: Config, sender: string, verified?: boolean) {
-  if (config.auth === 'microsoft' && verified !== true) return undefined
-  const player = Object.values(bot.players).find(entry => entry.uuid === sender)
-  if (!player) return undefined
-  const name = player.username.toLowerCase()
-  if (name !== bot.username.toLowerCase() && config.control?.players.has(name)) return player.username
-  return undefined
-}
-
-export function createControls(bot: Bot, config: Config & { control: NonNullable<Config['control']> },
+export function createControls(bot: Bot,
   observe: () => Observation | null, report: Report, recover: () => void, workstationTest: boolean,
-  isCurrentEntity: (id: number) => boolean, onTrustedChat?: (message: TrustedMinecraftChat) => void) {
+  isCurrentEntity: (id: number) => boolean) {
   const skills = createSkills(bot, isCurrentEntity)
   const tasks = createTasks(report, recover)
   const reported = new Set<Promise<TaskResult>>()
@@ -121,18 +109,6 @@ export function createControls(bot: Bot, config: Config & { control: NonNullable
       send(reason)
     }
   }
-
-  bot._client.on('playerChat', ({ sender, plainMessage, verified }) => {
-    if (closing || !observe() || typeof plainMessage !== 'string' ||
-      (!onTrustedChat && !plainMessage.startsWith('!'))) return
-    const player = authorizedPlayer(bot, config, sender, verified)
-    if (!player) return
-    if (onTrustedChat) {
-      onTrustedChat({ player, text: plainMessage })
-      return
-    }
-    dispatch(player, plainMessage, reply)
-  })
 
   return {
     execute,

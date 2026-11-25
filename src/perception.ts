@@ -14,6 +14,7 @@ export interface NearbyEntity {
 
 export interface Observation {
   schemaVersion: 1
+  systemMessages?: string[]
   username: string
   connection: 'spawned'
   version: string

@@ -1,6 +1,5 @@
 import { readConfig } from "../config.ts";
-import type { connect } from "../client.ts";
-import type { TrustedMinecraftChat } from "../controls.ts";
+import type { connect, PlayerChat } from "../client.ts";
 import type { Observation } from "../perception.ts";
 import type { TaskResult } from "../tasks.ts";
 
@@ -17,22 +16,21 @@ export type LiveMinecraftState = {
   task: { phase: TaskPhase; target: string | null; result: TaskResult | null };
 };
 type LiveMinecraftSnapshot = LiveMinecraftState & { active: boolean; publicChat: boolean };
-export type MinecraftOperatorInput = TrustedMinecraftChat & { replyRoute: number | null };
+export type MinecraftOperatorInput = PlayerChat & { replyRoute: number | null };
 
 const idleTask = { phase: "idle", target: null, result: null } as const;
 
 function connectionConfig(settings: unknown, observeOnly: boolean) {
   if (typeof settings !== "object" || settings === null) throw new Error("请填写 Minecraft 连接设置。");
-  const { host, port, username, auth, offlineControl, authorizedPlayers = "" } = settings as Record<string, unknown>;
+  const { host, port, username, auth, offlineControl } = settings as Record<string, unknown>;
   if (typeof host !== "string" || host.length > 255 || typeof port !== "string" ||
     typeof username !== "string" || username.length > 320 || (auth !== "offline" && auth !== "microsoft") ||
-    typeof offlineControl !== "boolean" || typeof authorizedPlayers !== "string" || authorizedPlayers.length > 500) {
+    typeof offlineControl !== "boolean") {
     throw new Error("Minecraft 连接设置无效。");
   }
   return readConfig({
     MC_HOST: host, MC_PORT: port, MC_USERNAME: username, MC_AUTH: auth,
     MC_CONTROL: String(!observeOnly), MC_ALLOW_OFFLINE_CONTROL: String(offlineControl),
-    MC_AUTHORIZED_PLAYERS: authorizedPlayers,
     MC_SNAPSHOT_INTERVAL_MS: "1000",
   });
 }
@@ -83,14 +81,12 @@ export class LiveMinecraftSession {
         this.#state.authPrompt = prompt;
         this.#emit();
       }, {
-        onTrustedChat: ({ player, text }) => {
+        onPlayerChat: ({ player, text }) => {
           if (generation !== this.#generation || this.#state.phase !== "ready") return;
-          const request = /^!pal\s+([\s\S]+)$/iu.exec(text.trim())?.[1]?.trim();
-          if (!request) return;
           const observation = this.#connection?.io.read();
           if (!observation) return;
           this.#report("snapshot", { observation });
-          this.#receiveChat?.({ player, text: request, replyRoute: this.chatReplyRoute() });
+          this.#receiveChat?.({ player, text, replyRoute: this.chatReplyRoute() });
         },
       });
       this.#connection = connection;

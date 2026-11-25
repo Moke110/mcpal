@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="./live.css">
     <script type="module" src="./pal-play-renderer.js"></script>
     <script type="module" src="./pal-renderer.js"></script>
+    <script type="module" src="./sensor-microphone.js"></script>
+    <script type="module" src="./sensor-application.js"></script>
     <script type="module" src="./pal-chat-renderer.js"></script>
     <script type="module" src="./renderer.js"></script>
     <script type="module" src="./speech-renderer.js"></script>
@@ -31,6 +33,23 @@
       <div class="brand"><span class="mark" aria-hidden="true">M</span><h1>MC-Pal</h1></div>
       <button id="new-pal" type="button">创建伙伴</button>
       <ul id="pal-list" class="pal-list"></ul>
+      <details id="sensor-sources" hidden>
+        <summary>信息源 · <span id="sensor-profile"></span></summary>
+        <label><input type="checkbox" data-source="gui">GUI 文本</label>
+        <label><input type="checkbox" data-source="minecraft">Minecraft 聊天</label>
+        <fieldset id="sensor-microphone"><legend>麦克风</legend>
+          <button type="button" id="mic-discover">查找麦克风</button>
+          <label>设备 <select id="mic-device"></select></label>
+          <label>发送用户 <input id="mic-user" maxlength="100" value="桌面操作者"></label>
+          <label><input type="checkbox" id="mic-enabled">启用麦克风源</label>
+          <output id="mic-state" role="status">未监听</output>
+        </fieldset>
+        <label><input type="checkbox" id="app-enabled">应用声音</label>
+        <label>聊天或会议应用<select id="app-source"></select></label>
+        <button id="app-discover" type="button">刷新应用</button>
+        <output id="app-state">未监听</output>
+      </details>
+      <button id="sensor-debug" type="button">感受器消息</button>
       <p id="pal-list-error" role="alert"></p>
     </nav>
     <main>
@@ -322,9 +341,6 @@
             <label>账号或玩家名
               <input id="minecraft-username" name="username" maxlength="320" autocomplete="off" required>
             </label>
-            <label>授权聊天玩家
-              <input name="authorizedPlayers" maxlength="500" placeholder="Owner, Friend" autocomplete="off">
-            </label>
             <label class="control live-offline" id="minecraft-offline-control" hidden>
               <input name="offlineControl" type="checkbox"> 允许在隔离世界中使用离线控制
             </label>
@@ -341,7 +357,7 @@
           <label class="control">
             <input id="minecraft-public-chat" type="checkbox" disabled> 在 Minecraft 公开回复
           </label>
-          <p class="live-note">授权玩家可在游戏中发送 <code>!pal 生命值</code>、<code>!pal 跟随 Owner</code> 或 <code>!pal 停止</code>。</p>
+          <p class="live-note">玩家可在游戏中发送 <code>!pal 生命值</code>、<code>!pal 跟随 Owner</code> 或 <code>!pal 停止</code>。</p>
           <ol id="live-chat-log" aria-label="最近的 Minecraft 对话"></ol>
         </div>
       </section>

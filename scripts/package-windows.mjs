@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { closeSync, copyFileSync, cpSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, renameSync, statSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 if (process.platform !== "win32" || process.arch !== "x64") {
@@ -29,11 +29,7 @@ function isX64(exe) {
   }
 }
 
-// Linked worktrees share repository-local build output with their primary checkout.
-const git = spawnSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
-  cwd: root, encoding: "utf8", windowsHide: true,
-});
-const temp = join(git.status === 0 ? dirname(git.stdout.trim()) : root, "tmp");
+const temp = join(root, "tmp");
 mkdirSync(temp, { recursive: true });
 const output = mkdtempSync(join(temp, "windows-release-"));
 const bundleName = `MC-Pal-${manifest.version}-windows-x64`;
@@ -65,6 +61,9 @@ for (const name of ["package.json", "package-lock.json", "LICENSE"]) {
   copyFileSync(join(root, name), join(app, name));
 }
 cpSync(join(root, "src"), join(app, "src"), { recursive: true });
+const compiler = join(process.env.SystemRoot, "Microsoft.NET/Framework64/v4.0.30319/csc.exe");
+const helper = join(app, "src/sensor/windows/ProcessAudio.exe");
+run(compiler, ["/nologo", "/platform:x64", "/out:" + helper, join(root, "src/sensor/windows/ProcessAudio.cs")], root);
 copyFileSync(join(root, "docs", "windows-acceptance.md"), join(bundle, "快速开始.md"));
 copyFileSync(join(root, ".env.example"), join(bundle, "settings.example.env"));
 
