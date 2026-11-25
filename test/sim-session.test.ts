@@ -233,7 +233,7 @@ test("Pal play desktop inputs use live observations and require consent for the 
 test("a desktop chat sends multiline text through a sensor and publishes a simulated Pal reply", () => {
   const { clock, advance } = fakeClock();
   const published: ReturnType<SimulationSession["snapshot"]>[] = [];
-  const express = createStateExpressor(() => (state: ReturnType<SimulationSession["snapshot"]>) => published.push(state));
+  const express = createStateExpressor((state: ReturnType<SimulationSession["snapshot"]>) => published.push(state));
   const session = new SimulationSession(express, clock);
   const sense = createTextSensor((text, source) => session.submitText(text, source));
   try {
