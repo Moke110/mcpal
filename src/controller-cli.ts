@@ -21,7 +21,6 @@ try {
   const target = parseAction({ kind: 'move', at: { x, y, z } })
   const furnace = workstations ? parseAction({ kind: 'move', at: { x: fx, y: fy, z: fz } }) : undefined
   if (target.kind !== 'move' || (furnace && furnace.kind !== 'move')) throw new Error('Expected block coordinates')
-  if (workstations) config.control = { players: new Set() }
   const client = connect(config, report, message => process.stderr.write(`${message}\n`), { workstationTest: workstations })
   const interruption = new AbortController()
   const interrupt = () => interruption.abort(new Error('Controller interrupted'))

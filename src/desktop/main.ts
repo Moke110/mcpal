@@ -300,7 +300,14 @@ async function startDesktop(): Promise<void> {
   }, (config, report, authPrompt, options) => connect(config, report, authPrompt, {
     ...options,
     profilesFolder: join(app.getPath("userData"), "minecraft-profiles"),
-  }), (message) => session.submitMinecraft(message));
+  }), (message) => {
+    if (activeProfile) {
+      if (activeProfile.sources?.minecraft) appendMessage?.("Minecraft 聊天", message.player, message.text);
+      return;
+    }
+    const request = /^!pal\s+([\s\S]+)$/iu.exec(message.text.trim())?.[1]?.trim();
+    if (request) session.submitMinecraft({ ...message, text: request });
+  });
   handle("minecraft:snapshot", () => live.snapshot());
   handle("minecraft:view", () => live.readView());
   handle("minecraft:connect", (settings) => live.open(settings));

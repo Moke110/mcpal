@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import mineflayer from 'mineflayer'
 import prismarineChat from 'prismarine-chat'
 import type { Config } from './config.ts'
-import { createControls, type TrustedMinecraftChat } from './controls.ts'
+import { createControls } from './controls.ts'
 import type { MinecraftIO } from './io.ts'
 import { readBlock, readObservation } from './perception.ts'
 import { readWorldView } from './world-view.ts'
@@ -10,11 +10,13 @@ import { readWorldView } from './world-view.ts'
 // The CommonJS package exports its loader directly.
 const loadChatMessage = prismarineChat as unknown as typeof prismarineChat.default
 
+export type PlayerChat = Readonly<{ player: string; text: string }>
+
 type Report = (event: string, fields?: Record<string, unknown>) => void
 
 export function connect(config: Config, report: Report, onAuthPrompt: (message: string) => void,
-  { workstationTest = false, profilesFolder = resolve('.runtime', 'profiles'), onTrustedChat }:
-    { workstationTest?: boolean; profilesFolder?: string; onTrustedChat?: (message: TrustedMinecraftChat) => void } = {}) {
+  { workstationTest = false, profilesFolder = resolve('.runtime', 'profiles'), onPlayerChat }:
+    { workstationTest?: boolean; profilesFolder?: string; onPlayerChat?: (message: PlayerChat) => void } = {}) {
   let stopping = false
   report('connecting', { host: config.host, port: config.port, auth: config.auth, version: config.version || 'auto' })
   const bot = mineflayer.createBot({
@@ -27,6 +29,7 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
   let spawned = false
   let positioned = false
   let inventoryReceived = false
+  const systemMessages: string[] = []
   const currentEntities = new Set<number>()
   const isCurrentEntity = (id: number) => currentEntities.has(id)
   let ended = false
@@ -95,7 +98,7 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
 
   function getStatus() {
     return ready()
-      ? readObservation(bot, inventoryReceived, controls?.status(), isCurrentEntity)
+      ? { ...readObservation(bot, inventoryReceived, controls?.status(), isCurrentEntity), systemMessages: [...systemMessages] }
       : null
   }
 
@@ -127,6 +130,7 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
     spawned = false
     positioned = false
     inventoryReceived = false
+    systemMessages.length = 0
     currentEntities.clear()
     clearInterval(interval)
     interval = undefined
@@ -135,6 +139,19 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
   })
   transport.on('window_items', (packet: { windowId: number }) => {
     if (packet.windowId === 0) inventoryReceived = true
+  })
+  bot.on('message', (message, position) => {
+    if (!ready() || position !== 'system') return
+    systemMessages.push(message.toString().slice(0, 1024))
+    if (systemMessages.length > 20) systemMessages.shift()
+    publish()
+  })
+  transport.on('playerChat', ({ sender, plainMessage }) => {
+    if (!ready() || !onPlayerChat || typeof plainMessage !== 'string' || !plainMessage.trim()) return
+    const player = Object.values(bot.players).find(entry => entry.uuid === sender)
+    if (player && player.username.toLowerCase() !== bot.username.toLowerCase()) {
+      onPlayerChat({ player: player.username, text: plainMessage })
+    }
   })
   bot.on('chat', (username, message) => report('chat', { username, message }))
   bot.on('death', () => {
@@ -158,11 +175,11 @@ export function connect(config: Config, report: Report, onAuthPrompt: (message: 
 
   if (config.control) {
     try {
-      controls = createControls(bot, { ...config, control: config.control },
+      controls = createControls(bot,
         () => bot.health === 0 ? null : getStatus(), report, () => {
           close('operationCleanupTimeout')
           transport.socket?.destroy()
-        }, workstationTest, isCurrentEntity, onTrustedChat)
+        }, workstationTest, isCurrentEntity)
     } catch (error) {
       report('error', { message: error instanceof Error ? error.message : String(error) })
       close('controlSetupFailed')
