@@ -125,6 +125,13 @@ async function startDesktop(): Promise<void> {
   const profiles = new PalProfiles(app.getPath("userData"));
   handle("pal:list", () => profiles.list());
   handle("pal:create", (input) => profiles.create(input));
+  handle("pal:start-chat", async (id) => {
+    const profile = (await profiles.list()).find((pal) => pal.id === id);
+    if (!profile) throw new Error("找不到所选伙伴");
+    if (live.snapshot().active) throw new Error("请先结束 Minecraft 陪玩");
+    session.startDesktopChat(profile.backend === "sim" ? "simulated" : profile.backend);
+    if (profile.backend === "local") void session.startLocal();
+  });
   handle("desktop:window-control", (action) => {
     switch (action) {
       case "minimize": window.minimize(); break;

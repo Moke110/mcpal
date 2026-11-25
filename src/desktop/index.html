@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="./style.css">
     <link rel="stylesheet" href="./live.css">
     <script type="module" src="./pal-renderer.js"></script>
+    <script type="module" src="./pal-chat-renderer.js"></script>
     <script defer src="./renderer.js"></script>
     <script type="module" src="./speech-renderer.js"></script>
     <script type="module" src="./asr-renderer.js"></script>
@@ -72,6 +73,22 @@
       <section id="pal-operation" class="panel pal-panel" hidden>
         <h2 id="pal-operation-title"></h2>
         <p id="pal-operation-name"></p>
+        <form id="pal-chat-setup" hidden>
+          <label>输入方式
+            <select name="input">
+              <option value="text">键盘输入</option>
+              <option value="microphone">麦克风</option>
+            </select>
+          </label>
+          <label>输出方式
+            <select name="output">
+              <option value="text">对话文字</option>
+              <option value="speech">本机语音</option>
+            </select>
+          </label>
+          <button type="submit" class="primary">确认</button>
+          <p id="pal-chat-error" role="alert"></p>
+        </form>
       </section>
       <div id="desktop-workspaces">
     <div id="simulation-workspace" class="workspace">
