@@ -5,7 +5,10 @@ import { join } from "node:path";
 const defaultSources = { gui: true, minecraft: true };
 export type TextSources = typeof defaultSources;
 
+export type MicrophoneSource = { enabled: boolean; deviceId: string; label: string; sender: string };
+
 export interface PalProfile {
+  microphone?: MicrophoneSource;
   sources?: TextSources;
   id: string;
   nickname: string;
@@ -35,11 +38,26 @@ export class PalProfiles {
   }
 
   setTextSource(id: string, key: keyof TextSources, enabled: boolean) {
+    return this.#update(id, profile => {
+      profile.sources = { ...defaultSources, ...profile.sources, [key]: enabled };
+    });
+  }
+
+  setMicrophone(id: string, input: unknown) {
+    if (!input || typeof input !== "object") throw new TypeError("麦克风配置无效");
+    const { enabled, deviceId, label, sender } = input as Record<string, unknown>;
+    if (typeof enabled !== "boolean" || typeof deviceId !== "string" || deviceId.length > 512 ||
+        typeof label !== "string" || label.length > 256 || typeof sender !== "string" ||
+        sender.length > 100 || (enabled && (!deviceId || !sender.trim()))) throw new TypeError("请选择设备并绑定用户");
+    return this.#update(id, profile => { profile.microphone = { enabled, deviceId, label, sender: sender.trim() }; });
+  }
+
+  #update(id: string, update: (profile: PalProfile) => void) {
     const operation = this.#pending.then(async () => {
       const profiles = await this.list();
       const profile = profiles.find(item => item.id === id);
       if (!profile) throw new Error("找不到所选伙伴");
-      profile.sources = { ...defaultSources, ...profile.sources, [key]: enabled };
+      update(profile);
       await this.#save(profiles);
       return profile;
     });

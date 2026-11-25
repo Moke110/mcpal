@@ -10,6 +10,7 @@ import { connect } from "../client.ts";
 import { createApiBackend } from "../processor/api-backend.ts";
 import { createLocalBackend } from "../processor/llama-server.ts";
 import { PalProfiles, type PalProfile } from "../gui/pal-profiles.ts";
+import { Microphone } from "../sensor/microphone.ts";
 import { MessageCache } from "../sensor/message-cache.ts";
 import { openLocalFixture } from "../processor/local-fixture.ts";
 import { offlinePlaySettings } from "../gui/pal-play.ts";
@@ -118,7 +119,7 @@ async function startDesktop(): Promise<void> {
       details.isMainFrame && details.requestingUrl === page.href &&
       "mediaTypes" in details && details.mediaTypes?.length === 1 &&
       details.mediaTypes[0] === "audio" &&
-      (!asrFixture && openMicEnabled || voice.snapshot().phase === "recording"));
+      (microphone.enabled || Date.now() < microphoneDiscoveryUntil || !asrFixture && openMicEnabled || voice.snapshot().phase === "recording"));
   });
 
   function handle(
@@ -140,14 +141,53 @@ async function startDesktop(): Promise<void> {
   let activeProfile: PalProfile | undefined;
   let appendMessage: ReturnType<MessageCache["begin"]> | undefined;
 
+  let microphoneDiscoveryUntil = 0;
+  const microphone = new Microphone(events => openVosk(events, process.env), event => {
+    if (!window.isDestroyed()) window.webContents.send("sensor:microphone-command", event);
+  });
+  let transitioning = Promise.resolve();
+  function transition(change: () => Promise<void>) {
+    const next = transitioning.then(change);
+    transitioning = next.catch(() => {});
+    return next;
+  }
+  function startMicrophone(profile: PalProfile) {
+    const source = profile.microphone;
+    const append = appendMessage;
+    if (source?.enabled && append) microphone.start(source, text => append("麦克风 · " + source.label, source.sender, text));
+  }
+  handle("sensor:microphone-discover", () => { microphoneDiscoveryUntil = Date.now() + 5000; });
+  handle("sensor:microphone-ready", token => microphone.ready(token));
+  handle("sensor:microphone-audio", (token, pcm) => microphone.audio(token, pcm));
+  handle("sensor:microphone-lost", token => microphone.lost(token));
+  handle("sensor:microphone-flushed", token => microphone.flushed(token));
+  handle("sensor:microphone-set", async (id, input) => {
+    if (typeof id !== "string") throw new TypeError("Invalid Pal");
+    const profile = await profiles.setMicrophone(id, input);
+    await transition(async () => {
+      if (activeProfile?.id !== id) return;
+      await microphone.stop();
+      activeProfile = profile;
+      startMicrophone(profile);
+    });
+    return profile.microphone;
+  });
+
   function startSensor(profile: PalProfile) {
+    return transition(async () => {
+    await microphone.stop();
     activeProfile = profile;
     appendMessage = cache.begin();
+    startMicrophone(profile);
+    });
   }
   function endSensor() {
+    return transition(async () => {
+    await microphone.stop();
     activeProfile = undefined;
     appendMessage = undefined;
     cache.end();
+    });
   }
 
   handle("sensor:debug", async () => {
@@ -179,7 +219,7 @@ async function startDesktop(): Promise<void> {
     if (!profile) throw new Error("找不到所选伙伴");
     if (live.snapshot().active) throw new Error("请先结束 Minecraft 陪玩");
     session.startDesktopChat(profile.backend === "sim" ? "simulated" : profile.backend);
-    startSensor(profile);
+    await startSensor(profile);
     palVoice = profile.voice;
     if (profile.backend === "local") void session.startLocal();
   });
@@ -312,7 +352,7 @@ async function startDesktop(): Promise<void> {
     const allowApi = typeof address === "object" && address !== null &&
       "allowApi" in address && address.allowApi === true;
     session.startPalPlay(profile.backend === "sim" ? "simulated" : profile.backend, allowApi);
-    startSensor(profile);
+    await startSensor(profile);
     palPlayActive = true;
     palVoice = profile.voice;
     if (profile.backend === "local") void session.startLocal();
@@ -328,8 +368,13 @@ async function startDesktop(): Promise<void> {
     if (typeof enabled !== "boolean") throw new TypeError("Invalid Minecraft reply route");
     live.setChatRoute(enabled);
   });
+  let closing = false;
+  window.on("close", event => {
+    if (closing) return;
+    event.preventDefault();
+    void endSensor().finally(() => { closing = true; window.close(); });
+  });
   window.on("closed", () => {
-    endSensor();
     voice.cancel();
     speech.dispose();
     session.dispose();

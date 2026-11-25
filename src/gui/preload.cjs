@@ -51,6 +51,13 @@ contextBridge.exposeInMainWorld("minecraft", {
 contextBridge.exposeInMainWorld("palProfiles", {
   list: () => ipcRenderer.invoke("pal:list"),
   setTextSource: (id, key, enabled) => ipcRenderer.invoke("sensor:text-source", id, key, enabled),
+  microphoneDiscover: () => ipcRenderer.invoke("sensor:microphone-discover"),
+  setMicrophone: (id, config) => ipcRenderer.invoke("sensor:microphone-set", id, config),
+  microphoneReady: token => ipcRenderer.invoke("sensor:microphone-ready", token),
+  microphoneAudio: (token, pcm) => ipcRenderer.invoke("sensor:microphone-audio", token, pcm),
+  microphoneLost: token => ipcRenderer.invoke("sensor:microphone-lost", token),
+  microphoneFlushed: token => ipcRenderer.invoke("sensor:microphone-flushed", token),
+  onMicrophone: listener => ipcRenderer.on("sensor:microphone-command", (_event, command) => listener(command)),
   openSensorDebug: () => ipcRenderer.invoke("sensor:debug"),
   voices: () => ipcRenderer.invoke("pal:voices"),
   create: (profile) => ipcRenderer.invoke("pal:create", profile),

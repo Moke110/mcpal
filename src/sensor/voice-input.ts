@@ -1,4 +1,5 @@
 export type RecognizerEvents = {
+  segment?(text: string): void;
   partial(text: string): void;
   final(text: string): void;
   failure(message: string): void;
