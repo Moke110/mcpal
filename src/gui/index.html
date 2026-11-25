@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MC-Pal</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="./live.css">
+    <script type="module" src="./pal-play-renderer.js"></script>
+    <script type="module" src="./pal-renderer.js"></script>
+    <script type="module" src="./pal-chat-renderer.js"></script>
+    <script type="module" src="./renderer.js"></script>
+    <script type="module" src="./speech-renderer.js"></script>
+    <script type="module" src="./asr-renderer.js"></script>
+    <script type="module" src="./open-mic-renderer.js"></script>
+    <script defer src="./live-renderer.js"></script>
+    <script defer src="./world-renderer.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <span>MC-Pal</span>
+      <div class="window-controls">
+        <button type="button" data-window-control="minimize" aria-label="最小化">−</button>
+        <button type="button" data-window-control="toggle-maximize" aria-label="最大化">□</button>
+        <button type="button" data-window-control="close" aria-label="关闭">×</button>
+      </div>
+    </header>
+    <div class="pal-layout">
+    <nav class="pal-sidebar" aria-label="伙伴">
+      <div class="brand"><span class="mark" aria-hidden="true">M</span><h1>MC-Pal</h1></div>
+      <button id="new-pal" type="button">创建伙伴</button>
+      <ul id="pal-list" class="pal-list"></ul>
+      <p id="pal-list-error" role="alert"></p>
+    </nav>
+    <main>
+      <section id="pal-home" class="panel" aria-label="主页">
+        <div class="home-guide">
+          <span class="mark" aria-hidden="true">M</span>
+          <p id="home-instruction">从左侧选择伙伴，开始聊天或陪玩。</p>
+        </div>
+      </section>
+      <section id="pal-creation" class="panel pal-panel" hidden>
+        <h2>创建伙伴</h2>
+        <form id="create-pal">
+          <label>大脑模型
+            <select name="backend">
+              <option value="sim">模拟</option>
+              <option value="api">API 模型</option>
+              <option value="local">本地模型</option>
+            </select>
+          </label>
+          <label>语音音色
+            <select id="pal-voice" name="voice"><option value="default">系统默认</option></select>
+          </label>
+          <label>游戏登录方式
+            <select name="login" required>
+              <option value="">请选择</option>
+              <option value="offline">离线登录</option>
+              <option value="online" disabled>正版登录</option>
+            </select>
+          </label>
+          <fieldset id="pal-offline-settings" hidden disabled>
+            <label>游戏昵称 <input name="nickname" required pattern="[A-Za-z0-9_]{1,16}" maxlength="16"></label>
+            <label>皮肤
+              <select name="skin">
+                <option value="classic">经典</option>
+                <option value="slim">纤细</option>
+              </select>
+            </label>
+            <p class="live-note">离线皮肤偏好会保存。服务器中显示的皮肤由服务器和客户端决定。</p>
+          </fieldset>
+          <button class="primary" type="submit">保存伙伴</button>
+          <p id="pal-error" role="alert"></p>
+        </form>
+      </section>
+      <section id="pal-operation" class="panel pal-panel" hidden>
+        <h2 id="pal-operation-title"></h2>
+        <section id="pal-play" hidden>
+          <form id="pal-play-form">
+            <p>连接局域网世界时，请填写房主地址及开放世界时显示的端口。</p>
+            <label class="control">Minecraft 地址 <input name="host" required maxlength="255" value="localhost"></label>
+            <label class="control">端口 <input name="port" type="number" min="1" max="65535" required value="25565"></label>
+            <label class="control">输入 <select name="input"><option value="text">键盘</option><option value="voice">麦克风</option></select></label>
+            <label class="control">输出 <select name="output"><option value="text">桌面文字</option><option value="voice">桌面文字及语音</option></select></label>
+            <label class="control"><input name="offlineControl" type="checkbox"> 允许在隔离的离线世界执行游戏操作</label>
+            <label id="pal-play-api-consent" class="control" hidden>
+              <input name="allowApi" type="checkbox" disabled> 同意向配置的 API 服务发送游戏观测与对话
+            </label>
+            <button class="primary" type="submit">确认</button>
+          </form>
+          <p id="pal-play-status" role="status"></p>
+          <button id="pal-play-end" type="button" hidden>结束陪玩</button>
+        </section>
+        <p id="pal-operation-name"></p>
+        <form id="pal-chat-setup" hidden>
+          <label>输入方式
+            <select name="input">
+              <option value="text">键盘输入</option>
+              <option value="microphone">麦克风</option>
+            </select>
+          </label>
+          <label>输出方式
+            <select name="output">
+              <option value="text">对话文字</option>
+              <option value="speech">本机语音</option>
+            </select>
+          </label>
+          <button type="submit" class="primary">确认</button>
+          <p id="pal-chat-error" role="alert"></p>
+        </form>
+      </section>
+      <div id="desktop-workspaces" hidden>
+    <div id="simulation-workspace" class="workspace">
+      <section class="panel conversation" aria-labelledby="conversation-title">
+        <div class="panel-title">
+          <h2 id="conversation-title">对话</h2>
+          <button id="stop" class="danger" type="button">停止任务</button>
+        </div>
+        <div id="conversation" role="log" aria-label="对话记录" tabindex="0">
+          <p class="empty">询问附近的玩家，或发送「跟随小明」开始。</p>
+        </div>
+        <form id="composer">
+          <label for="input">输入消息</label>
+          <div class="composer-row">
+            <textarea id="input" name="text" rows="2" maxlength="500" required placeholder="附近有谁？"></textarea>
+            <button class="primary" type="submit">发送</button>
+            <button id="voice" type="button">注入语音文本</button>
+          </div>
+        </form>
+        <p id="error" role="alert" hidden></p>
+      </section>
+
+      <aside aria-label="会话信息">
+        <details id="session-settings" open>
+          <summary>会话设置</summary>
+          <div class="session-settings-panels">
+        <section class="panel" aria-labelledby="observation-title">
+          <div class="panel-title">
+            <h2 id="observation-title">游戏观测</h2>
+            <button id="advance" type="button">切换观测</button>
+          </div>
+          <p id="place" class="place"></p>
+          <ul id="players" aria-label="附近的玩家"></ul>
+        </section>
+        <section class="panel" aria-labelledby="status-title">
+          <h2 id="status-title">会话状态</h2>
+          <dl aria-live="polite">
+            <div><dt>回复</dt><dd id="reply"></dd></div>
+            <div><dt>游戏任务</dt><dd id="task"></dd></div>
+            <div><dt>模拟播报</dt><dd id="playback"></dd></div>
+          </dl>
+        </section>
+        <section class="panel" aria-labelledby="window-title">
+          <h2 id="window-title">读取窗口</h2>
+          <dl>
+            <div><dt>当前窗口</dt><dd id="read-window"></dd></div>
+            <div><dt>下一窗读取长度</dt><dd id="next-read"></dd></div>
+            <div><dt>结果</dt><dd id="window-result" aria-live="polite"></dd></div>
+            <div><dt>首字 / 完整校验</dt><dd id="window-latency"></dd></div>
+            <div><dt>样本</dt><dd id="window-counts"></dd></div>
+            <div><dt>成功 P50 / P95</dt><dd id="window-percentiles"></dd></div>
+          </dl>
+        </section>
+        <section class="panel" aria-labelledby="settings-title">
+          <h2 id="settings-title">连接与后端</h2>
+          <dl>
+            <div><dt>观测来源</dt><dd id="api-observation-source">模拟观测</dd></div>
+          </dl>
+          <label class="control" for="model-backend">模型后端
+            <select id="model-backend">
+              <option value="simulated">模拟后端</option>
+              <option value="api">外部 API</option>
+              <option value="local">本地模型</option>
+            </select>
+          </label>
+          <label id="api-live-option" class="control" hidden>
+            <input id="api-live" type="checkbox"> 使用实机观测与控制
+          </label>
+          <div>
+            <p id="api-origin" class="live-note"></p>
+            <button id="api-test" type="button">测试 API 连接</button>
+            <dl aria-live="polite">
+              <div><dt>连接测试</dt><dd id="api-test-result"></dd></div>
+              <div><dt>API 请求</dt><dd id="api-request"></dd></div>
+              <div><dt>取消尝试</dt><dd id="api-cancelled"></dd></div>
+            </dl>
+          </div>
+          <p id="local-unconfigured" class="live-note">本地后端需要配置 Windows llama-server 与 GGUF 文件。</p>
+          <div id="local-panel" hidden>
+            <p id="local-configuration" class="live-note"></p>
+            <button id="local-start" type="button">启动并预热</button>
+            <button id="local-stop" type="button">卸载模型</button>
+            <dl>
+              <div><dt>本地状态</dt><dd id="local-status" aria-live="polite"></dd></div>
+              <div><dt>采样独显峰值</dt><dd id="local-dedicated"></dd></div>
+              <div><dt>采样共享峰值</dt><dd id="local-shared"></dd></div>
+              <div><dt>严格上限</dt><dd id="local-limit"></dd></div>
+              <div><dt>采样记录</dt><dd id="local-sampling"></dd></div>
+              <div><dt>本地请求</dt><dd id="local-request"></dd></div>
+              <div><dt>取消尝试</dt><dd id="local-cancelled"></dd></div>
+            </dl>
+          </div>
+          <label class="control" for="simulation-scenario">模拟延迟
+            <select id="simulation-scenario">
+              <option value="normal">正常</option>
+              <option value="fast">快</option>
+              <option value="slow">慢</option>
+              <option value="jitter">抖动</option>
+              <option value="duplicate">重复结果</option>
+            </select>
+          </label>
+          <label class="control"><input id="timeout" type="checkbox"> 让下一条回复超时</label>
+          <button id="simulation-reconnect" type="button">模拟重连</button>
+        </section>
+        <details class="panel" id="acceptance">
+          <summary>联合验收</summary>
+          <p>创建使用模拟大脑的伙伴后即可体验模拟。实机、模型和音频设备需由操作者设置和启用。</p>
+          <button id="open-settings-folder" type="button">打开本机设置目录</button>
+          <p>将便携包内的 settings.example.env 另存为 .env，填写所需设置后重启。</p>
+          <ul>
+            <li>分别从 GUI、受信 Minecraft 聊天和本机语音发起请求。检查 GUI、公开发言和本机播报。</li>
+            <li>分别用 API 和本地后端询问状态、跟随、改口和停止。核对实机观测、动作和控制释放。</li>
+            <li>记录读取窗口、超时和取消。显存低于 6,000,000,000 字节及实际音频与任务 P95 待现场测量。</li>
+          </ul>
+          <p>便携包内的「快速开始.md」包含现场验收步骤和记录口径。</p>
+        </details>
+          </div>
+        </details>
+        <section class="panel" aria-labelledby="asr-title">
+          <h2 id="asr-title">本机语音输入</h2>
+          <label class="control"><input id="asr-enable" type="checkbox" disabled> 启用麦克风</label>
+          <label class="control" for="asr-device">输入设备 <select id="asr-device"><option value="">系统默认设备</option></select></label>
+          <p id="asr-device-status" role="status">等待配置</p>
+          <label id="asr-fixture" hidden>模拟场景
+            <select id="asr-fixture-mode">
+              <option value="status">状态追问</option>
+              <option value="follow">跟随小明</option>
+              <option value="stop">停止</option>
+              <option value="late">延迟结果</option>
+              <option value="empty">空识别</option>
+              <option value="device-error">设备出错</option>
+            </select>
+          </label>
+          <div class="speech-controls">
+            <button id="asr-record" type="button" aria-pressed="false" disabled>按住说话</button>
+            <button id="asr-cancel" type="button">取消录音</button>
+            <button id="asr-refresh" type="button">刷新麦克风</button>
+          </div>
+          <dl class="metrics">
+            <div><dt>状态</dt><dd id="asr-status" role="status">待启用</dd></div>
+            <div><dt>识别中</dt><dd id="asr-partial">—</dd></div>
+            <div><dt>最终文字</dt><dd id="asr-final">—</dd></div>
+            <div><dt>语音结束估计</dt><dd id="asr-voice-time">—</dd></div>
+            <div><dt>松键</dt><dd id="asr-release-time">—</dd></div>
+            <div><dt>ASR 最终结果</dt><dd id="asr-final-time">—</dd></div>
+            <div><dt>读取窗口</dt><dd id="asr-window">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="open-mic-title">
+          <h2 id="open-mic-title">开放麦</h2>
+          <label class="control"><input id="open-mic-enable" type="checkbox" disabled> 持续监听并消除播报回声</label>
+          <p id="open-mic-status" role="status">未启用</p>
+          <label id="open-mic-fixture" hidden>模拟声源
+            <select id="open-mic-scenario">
+              <option value="echo">仅播放参考（多路径回声）</option>
+              <option value="status">插话追问</option>
+              <option value="stop">插话停止</option>
+              <option value="error">参考中断</option>
+            </select>
+          </label>
+          <dl class="metrics">
+            <div><dt>回声参考</dt><dd id="open-mic-reference">—</dd></div>
+            <div><dt>插话开始</dt><dd id="open-mic-start">—</dd></div>
+            <div><dt>实际停播</dt><dd id="open-mic-cut">—</dd></div>
+            <div><dt>ASR 最终结果</dt><dd id="open-mic-final">—</dd></div>
+            <div><dt>任务终止</dt><dd id="open-mic-stop">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="speech-title">
+          <h2 id="speech-title">本机播报</h2>
+          <label class="control" for="speech-device">输出设备 <select id="speech-device"><option value="">系统默认设备</option></select></label>
+          <p id="speech-device-status" role="status">待连接</p>
+          <label class="control"><input id="speech-enable" type="checkbox"> 播报已校验回复</label>
+          <div class="speech-controls">
+            <button id="speech-devices" type="button">刷新设备</button>
+            <button id="speech-preview" type="button">试听</button>
+            <button id="speech-stop" type="button">停播</button>
+          </div>
+          <dl>
+            <div><dt>状态</dt><dd id="speech-status" role="status">未开始</dd></div>
+            <div><dt>合成完成耗时</dt><dd id="speech-synthesis">—</dd></div>
+            <div><dt>首音帧</dt><dd id="speech-first">—</dd></div>
+            <div><dt>最近输出末帧</dt><dd id="speech-last">—</dd></div>
+          </dl>
+        </section>
+      </aside>
+    </div>
+
+    <div id="minecraft-workspace" class="workspace" hidden>
+      <section class="panel live-connection" aria-labelledby="live-title">
+        <div class="panel-title">
+          <h2 id="live-title">连接 Java 服务器或局域网世界</h2>
+          <span id="live-phase" class="live-badge" role="status"></span>
+        </div>
+        <form id="minecraft-connection">
+          <fieldset id="minecraft-settings" aria-label="Minecraft 连接设置">
+            <label>服务器地址
+              <input id="minecraft-host" name="host" value="localhost" maxlength="255" required>
+            </label>
+            <label>端口
+              <input id="minecraft-port" name="port" type="number" min="1" max="65535" step="1" value="25565" required>
+            </label>
+            <label>认证方式
+              <select id="minecraft-auth" name="auth">
+                <option value="microsoft">Microsoft</option>
+                <option value="offline">离线</option>
+              </select>
+            </label>
+            <label>账号或玩家名
+              <input id="minecraft-username" name="username" maxlength="320" autocomplete="off" required>
+            </label>
+            <label>授权聊天玩家
+              <input name="authorizedPlayers" maxlength="500" placeholder="Owner, Friend" autocomplete="off">
+            </label>
+            <label class="control live-offline" id="minecraft-offline-control" hidden>
+              <input name="offlineControl" type="checkbox"> 允许在隔离世界中使用离线控制
+            </label>
+            <p class="live-note">连接局域网世界时，请填写房主的地址和开放世界时显示的端口。</p>
+            <button id="minecraft-connect" class="primary" type="submit">连接</button>
+            <p class="live-note">离线皮肤偏好会保存。服务器中显示的皮肤由服务器和客户端决定。</p>
+          </fieldset>
+        </form>
+        <button id="minecraft-disconnect" type="button" disabled>断开</button>
+        <p id="live-auth-prompt" class="live-note" hidden></p>
+        <p id="live-reason" role="alert" hidden></p>
+        <div class="live-chat">
+          <h2>游戏聊天</h2>
+          <label class="control">
+            <input id="minecraft-public-chat" type="checkbox" disabled> 在 Minecraft 公开回复
+          </label>
+          <p class="live-note">授权玩家可在游戏中发送 <code>!pal 生命值</code>、<code>!pal 跟随 Owner</code> 或 <code>!pal 停止</code>。</p>
+          <ol id="live-chat-log" aria-label="最近的 Minecraft 对话"></ol>
+        </div>
+      </section>
+
+      <aside aria-label="实机观测和控制">
+        <section class="panel" aria-labelledby="world-view-title">
+          <div class="panel-title">
+            <h2 id="world-view-title">伙伴视角</h2>
+            <button id="world-view-toggle" type="button" aria-pressed="false">第一人称</button>
+          </div>
+          <p id="world-view-status" role="status">第一人称已关闭</p>
+          <canvas id="world-view" width="256" height="144" aria-label="已同步方块的第一人称视图" hidden></canvas>
+        </section>
+        <section class="panel" aria-labelledby="identity-title">
+          <h2 id="identity-title">桌面外观</h2>
+          <div class="identity-preview">
+            <canvas id="skin-preview" width="16" height="32" aria-label="本地皮肤预览"></canvas>
+            <div>
+              <label for="desktop-nickname">桌面昵称</label>
+              <input id="desktop-nickname" maxlength="32" autocomplete="off" value="MC-Pal">
+              <label for="desktop-skin">预览皮肤 PNG</label>
+              <input id="desktop-skin" type="file" accept="image/png">
+              <p id="skin-preview-status" role="status">默认桌面预览</p>
+            </div>
+          </div>
+          <p class="live-note">昵称和预览仅用于此桌面。Microsoft 角色名及游戏中可见的皮肤由账号和服务端决定。离线玩家名来自连接设置。</p>
+        </section>
+        <section class="panel" aria-labelledby="live-observation-title">
+          <h2 id="live-observation-title">实机游戏观测</h2>
+          <dl>
+            <div><dt>角色</dt><dd id="live-player"></dd></div>
+            <div><dt>维度与位置</dt><dd id="live-position"></dd></div>
+            <div><dt>脚下方块</dt><dd id="live-block"></dd></div>
+            <div><dt>生命值</dt><dd id="live-health"></dd></div>
+            <div><dt>背包</dt><dd id="live-inventory"></dd></div>
+            <div><dt>附近玩家</dt><dd id="live-nearby"></dd></div>
+          </dl>
+        </section>
+        <section class="panel" aria-labelledby="live-task-title">
+          <h2 id="live-task-title">实机控制</h2>
+          <dl><div><dt>游戏任务</dt><dd id="live-task" role="status"></dd></div></dl>
+          <p id="live-task-result" class="live-note" hidden></p>
+          <form id="minecraft-follow-form">
+            <label for="minecraft-target">可见玩家</label>
+            <div class="live-action-row">
+              <select id="minecraft-target" required><option value="">请选择</option></select>
+              <button id="minecraft-follow" class="primary" type="submit" disabled>跟随</button>
+              <button id="minecraft-stop" class="danger" type="button" disabled>停止</button>
+            </div>
+          </form>
+        </section>
+      </aside>
+    </div>
+      </div>
+    </main>
+    </div>
+  </body>
+</html>
