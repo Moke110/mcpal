@@ -21,7 +21,7 @@ export type MinecraftOperatorInput = TrustedMinecraftChat & { replyRoute: number
 
 const idleTask = { phase: "idle", target: null, result: null } as const;
 
-function connectionConfig(settings: unknown) {
+function connectionConfig(settings: unknown, observeOnly: boolean) {
   if (typeof settings !== "object" || settings === null) throw new Error("请填写 Minecraft 连接设置。");
   const { host, port, username, auth, offlineControl, authorizedPlayers = "" } = settings as Record<string, unknown>;
   if (typeof host !== "string" || host.length > 255 || typeof port !== "string" ||
@@ -31,7 +31,7 @@ function connectionConfig(settings: unknown) {
   }
   return readConfig({
     MC_HOST: host, MC_PORT: port, MC_USERNAME: username, MC_AUTH: auth,
-    MC_CONTROL: "true", MC_ALLOW_OFFLINE_CONTROL: String(offlineControl),
+    MC_CONTROL: String(!observeOnly), MC_ALLOW_OFFLINE_CONTROL: String(offlineControl),
     MC_AUTHORIZED_PLAYERS: authorizedPlayers,
     MC_SNAPSHOT_INTERVAL_MS: "1000",
   });
@@ -69,13 +69,13 @@ export class LiveMinecraftSession {
     return this.#state.phase === "ready" ? this.#connection?.readView?.() ?? null : null;
   }
 
-  open(settings: unknown): void {
+  open(settings: unknown, observeOnly = false): void {
     if (this.#connection) return;
     const generation = ++this.#generation;
     this.#state = { phase: "connecting", observation: null, authPrompt: null, reason: null, task: idleTask };
     this.#emit();
     try {
-      const config = connectionConfig(settings);
+      const config = connectionConfig(settings, observeOnly);
       const connection = this.#openConnection(config, (event, fields) => {
         if (generation === this.#generation) this.#report(event, fields);
       }, (prompt) => {

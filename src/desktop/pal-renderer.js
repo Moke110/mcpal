@@ -68,6 +68,7 @@ form.addEventListener("submit", async (event) => {
     operationTitle.textContent = "伙伴已保存";
     operationName.textContent = profile.nickname;
     showPanel(operationPanel);
+    operationPanel.dispatchEvent(new CustomEvent("pal-operation", { detail: { profile, operation: "saved" } }));
   } catch (error) {
     formError.textContent = error.message;
   } finally {

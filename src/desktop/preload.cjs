@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld("minecraft", {
   snapshot: () => ipcRenderer.invoke("minecraft:snapshot"),
   readView: () => ipcRenderer.invoke("minecraft:view"),
   connect: (settings) => ipcRenderer.invoke("minecraft:connect", settings),
+  playPal: (profileId, address) => ipcRenderer.invoke("minecraft:play-pal", profileId, address),
   disconnect: () => ipcRenderer.invoke("minecraft:disconnect"),
   follow: (target) => ipcRenderer.invoke("minecraft:follow", target),
   stop: () => ipcRenderer.invoke("minecraft:stop"),

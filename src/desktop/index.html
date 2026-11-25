@@ -7,6 +7,7 @@
     <title>MC-Pal</title>
     <link rel="stylesheet" href="./style.css">
     <link rel="stylesheet" href="./live.css">
+    <script type="module" src="./pal-play-renderer.js"></script>
     <script type="module" src="./pal-renderer.js"></script>
     <script defer src="./renderer.js"></script>
     <script type="module" src="./speech-renderer.js"></script>
@@ -71,6 +72,19 @@
       </section>
       <section id="pal-operation" class="panel pal-panel" hidden>
         <h2 id="pal-operation-title"></h2>
+        <section id="pal-play" hidden>
+          <form id="pal-play-form">
+            <p>连接局域网世界时，请填写房主地址及开放世界时显示的端口。</p>
+            <label class="control">Minecraft 地址 <input name="host" required maxlength="255" value="localhost"></label>
+            <label class="control">端口 <input name="port" type="number" min="1" max="65535" required value="25565"></label>
+            <label class="control">输入 <select name="input"><option value="text">键盘</option><option value="voice">麦克风</option></select></label>
+            <label class="control">输出 <select name="output"><option value="text">桌面文字</option><option value="voice">桌面文字及语音</option></select></label>
+            <label class="control"><input name="offlineControl" type="checkbox"> 允许在隔离的离线世界执行游戏操作</label>
+            <button class="primary" type="submit">确认</button>
+          </form>
+          <p id="pal-play-status" role="status"></p>
+          <button id="pal-play-end" type="button" hidden>结束陪玩</button>
+        </section>
         <p id="pal-operation-name"></p>
       </section>
       <div id="desktop-workspaces">

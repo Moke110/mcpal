@@ -9,6 +9,7 @@ import { createApiBackend } from "./api-backend.ts";
 import { createLocalBackend } from "./llama-server.ts";
 import { PalProfiles } from "./pal-profiles.ts";
 import { openLocalFixture } from "./local-fixture.ts";
+import { offlinePlaySettings } from "./pal-play.ts";
 import { LiveMinecraftSession } from "./live-session.ts";
 import { scenarios, SimulationSession } from "./sim-session.ts";
 import { SpeechOutput } from "./speech-output.ts";
@@ -238,6 +239,14 @@ async function startDesktop(): Promise<void> {
   handle("minecraft:snapshot", () => live.snapshot());
   handle("minecraft:view", () => live.readView());
   handle("minecraft:connect", (settings) => live.open(settings));
+  handle("minecraft:play-pal", async (profileId, address) => {
+    const profile = (await profiles.list()).find(({ id }) => id === profileId);
+    if (!profile) throw new Error("找不到已保存的伙伴。");
+    if (live.snapshot().active) throw new Error("请先断开当前 Minecraft 连接。");
+    const settings = offlinePlaySettings(profile, address);
+    session.setBackend(profile.backend === "sim" ? "simulated" : profile.backend);
+    live.open(settings, !settings.offlineControl);
+  });
   handle("minecraft:disconnect", () => live.disconnect());
   handle("minecraft:follow", (target) => live.follow(target));
   handle("minecraft:stop", () => {
